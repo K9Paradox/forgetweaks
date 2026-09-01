@@ -270,6 +270,20 @@ public class GuiUtilityMenu extends GuiScreen {
                     "buy", () -> announceResult(ReskillableHelper.unlockHeldItem())));
         }
 
+        if (com.rlutility.modules.LocksExploitHandler.isModLoaded()) {
+            rows.add(new ActionRow("Crack Lock World Seed",
+                    "Every lock combination is f(lock id, length, world seed) - one unknown for the "
+                            + "whole server. Brute forces the 32-bit space (covers text seeds, which are "
+                            + "String.hashCode) against locks you already cracked. Find it once and every "
+                            + "lock is instant. Needs one lock picked first.",
+                    com.rlutility.modules.LockSeedSolver.hasSeed() ? "known"
+                            : (com.rlutility.modules.LockSeedCracker.isRunning() ? "running" : "crack"),
+                    () -> {
+                        com.rlutility.modules.LockSeedCracker.start();
+                        mc.displayGuiScreen(null);
+                    }));
+        }
+
         if (QuestExploitHandler.isModLoaded()) {
             rows.add(new ActionRow("Quest Sweep",
                     "BetterQuesting's quest_action channel has no permission check, and its id array is "

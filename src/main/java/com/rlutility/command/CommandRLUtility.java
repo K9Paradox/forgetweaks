@@ -28,7 +28,7 @@ public class CommandRLUtility extends CommandBase {
 
     @Override
     public String getUsage(ICommandSender sender) {
-        return "/rlu | diag | lockseed <seed> | level <n> | tree <t> <n> | safe | max | class <t> | revert | xray [block|here] | unlock | buy <skill> [n]";
+        return "/rlu | diag | lockseed <seed> | lockcrack | level <n> | tree <t> <n> | safe | max | class <t> | revert | xray [block|here] | unlock | buy <skill> [n]";
     }
 
     @Override
@@ -132,6 +132,27 @@ public class CommandRLUtility extends CommandBase {
                         com.rlutility.modules.XRayHandler.forceRescan();
                         say(mc, "\u00a7fXRay " + (FeatureConfig.xrayEnabled ? "\u00a7aENABLED" : "\u00a7cDISABLED"));
                     }
+                });
+                return;
+            } else if (sub.equals("lockcrack")) {
+                final String arg = args.length > 1 ? args[1] : "start";
+                mc.addScheduledTask(() -> {
+                    if (arg.equalsIgnoreCase("stop")) {
+                        com.rlutility.modules.LockSeedCracker.stop();
+                        say(mc, "\u00a7eSeed search cancelled.");
+                        return;
+                    }
+                    if (arg.equalsIgnoreCase("status")) {
+                        long done = com.rlutility.modules.LockSeedCracker.getChecked();
+                        long total = com.rlutility.modules.LockSeedCracker.getTotal();
+                        say(mc, "\u00a76Seed crack: \u00a7f" + com.rlutility.modules.LockSeedCracker.getStatus());
+                        if (total > 0) {
+                            say(mc, "\u00a77  checked \u00a7f" + done + "\u00a77 / " + total
+                                    + " \u00a78(" + String.format("%.2f%%", 100.0 * done / total) + ")");
+                        }
+                        return;
+                    }
+                    com.rlutility.modules.LockSeedCracker.start();
                 });
                 return;
             } else if (sub.equals("lockseed")) {

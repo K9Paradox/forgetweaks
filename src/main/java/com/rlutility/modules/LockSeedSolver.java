@@ -128,6 +128,16 @@ public final class LockSeedSolver {
         FeatureConfig.saveConfig();
     }
 
+    /** Cracked locks as verification vectors for the seed cracker. */
+    public static java.util.List<LockSeedCracker.Vector> vectors() {
+        load();
+        java.util.List<LockSeedCracker.Vector> out = new java.util.ArrayList<>();
+        for (Map.Entry<Integer, byte[]> entry : known.entrySet()) {
+            out.add(new LockSeedCracker.Vector(entry.getKey(), entry.getValue()));
+        }
+        return out;
+    }
+
     /** Number of cracked locks available as verification vectors. */
     public static int knownCount() {
         load();
