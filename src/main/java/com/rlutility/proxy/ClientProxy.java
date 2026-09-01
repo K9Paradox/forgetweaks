@@ -81,6 +81,7 @@ public class ClientProxy extends CommonProxy {
         MinecraftForge.EVENT_BUS.register(new TimerHandler());
         MinecraftForge.EVENT_BUS.register(new MovementEventHandler());
         MinecraftForge.EVENT_BUS.register(new TriggerbotHandler());
+        MinecraftForge.EVENT_BUS.register(new WeaponLockBypassHandler());
 
         // ---- server-authoritative inventory automation ----------------------
         MinecraftForge.EVENT_BUS.register(new FastTriageHandler());

@@ -148,12 +148,20 @@ public class TriggerbotHandler {
         }
     }
 
+    /** Which packets actually went out last time - shown by /rlu diag. */
+    public static volatile String lastDispatched = "none";
+
     public static void dispatchDirectAttackPacket(EntityPlayerSP player, Entity target) {
         if (target == null) return;
         Minecraft mc = Minecraft.getMinecraft();
+        StringBuilder sent = new StringBuilder();
+
+        // Each of these is an independent server-side attack. Sending several at once stacks
+        // damage (subject to hurtResistantTime), so they are individually switchable - that also
+        // lets you isolate which one your server actually honours.
 
         // 1. Ice and Fire Multipart Attack Packet (Unchecked C2S entity attack)
-        if (Loader.isModLoaded("iceandfire")) {
+        if (FeatureConfig.bypassPacketIaf && Loader.isModLoaded("iceandfire")) {
             try {
                 Class<?> iafClass = Class.forName("com.github.alexthe666.iceandfire.IceAndFire");
                 Object wrapper = iafClass.getField("NETWORK_WRAPPER").get(null);
@@ -161,11 +169,12 @@ public class TriggerbotHandler {
                 Object msg = msgClass.getConstructor(int.class).newInstance(target.getEntityId());
                 Method sendToServer = wrapper.getClass().getMethod("sendToServer", net.minecraftforge.fml.common.network.simpleimpl.IMessage.class);
                 sendToServer.invoke(wrapper, msg);
+                sent.append("iaf ");
             } catch (Throwable ignored) {}
         }
 
         // 2. Spartan Weaponry Long Reach Attack Packet
-        if (Loader.isModLoaded("spartanweaponry")) {
+        if (FeatureConfig.bypassPacketSpartan && Loader.isModLoaded("spartanweaponry")) {
             try {
                 Class<?> spartanNet = Class.forName("com.oblivioussp.spartanweaponry.network.PacketHandler");
                 Object instance = spartanNet.getField("instance").get(null);
@@ -173,20 +182,23 @@ public class TriggerbotHandler {
                 Object packet = packetClass.getConstructor(int.class, float.class).newInstance(target.getEntityId(), 0.0F);
                 Method sendToServer = instance.getClass().getMethod("sendToServer", net.minecraftforge.fml.common.network.simpleimpl.IMessage.class);
                 sendToServer.invoke(instance, packet);
+                sent.append("spartan ");
             } catch (Throwable ignored) {}
         }
 
         // 3. Trinkets & Baubles Increased Reach Packet
-        if (Loader.isModLoaded("trinketsandbaubles")) {
+        if (FeatureConfig.bypassPacketTrinkets && Loader.isModLoaded("trinketsandbaubles")) {
             try {
                 Class<?> packetClass = Class.forName("xzeroair.trinkets.network.IncreasedReachPacket");
                 Object packet = packetClass.getConstructor(Entity.class).newInstance(target);
                 xzeroair.trinkets.network.NetworkHandler.INSTANCE.sendToServer((xzeroair.trinkets.network.BasicPacket) packet);
+                sent.append("trinkets ");
             } catch (Throwable ignored) {}
         }
 
-        // 4. Direct RLCombat PacketMainhandAttack
-        if (Loader.isModLoaded("rlcombat")) {
+        // 4. Direct RLCombat PacketMainhandAttack - the most likely one to be doing the work,
+        //    since it runs RLCombat's own server-side attack routine.
+        if (FeatureConfig.bypassPacketRlcombat && Loader.isModLoaded("rlcombat")) {
             try {
                 Class<?> packetHandlerClass = Class.forName("bettercombat.mod.network.PacketHandler");
                 Object instance = packetHandlerClass.getField("instance").get(null);
@@ -194,14 +206,17 @@ public class TriggerbotHandler {
                 Object packet = packetClass.getConstructor(int.class).newInstance(target.getEntityId());
                 Method sendToServer = instance.getClass().getMethod("sendToServer", net.minecraftforge.fml.common.network.simpleimpl.IMessage.class);
                 sendToServer.invoke(instance, packet);
+                sent.append("rlcombat ");
             } catch (Throwable ignored) {}
-        } else {
+        } else if (FeatureConfig.bypassPacketVanilla) {
             // 5. Direct Vanilla Attack Packet via Connection
             if (mc.getConnection() != null) {
                 mc.getConnection().sendPacket(new net.minecraft.network.play.client.CPacketUseEntity(target));
+                sent.append("vanilla ");
             }
         }
 
+        lastDispatched = sent.length() == 0 ? "none (all packet types disabled or absent)" : sent.toString().trim();
         player.swingArm(EnumHand.MAIN_HAND);
     }
 }

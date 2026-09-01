@@ -116,6 +116,11 @@ public final class FeatureConfig {
     // ---------------------------------------------------------------- Locks
     /** Auto-solve lock picking by disarming the pick so wrong guesses cost nothing. */
     public static boolean locksAutoSolve = true;
+    /**
+     * Swap the pick out so wrong guesses cannot break it. Side effect: canInteractWith goes false
+     * and the mod's GUI closes itself, so this is skipped when the combination is already known.
+     */
+    public static boolean locksDisarmPick = true;
     /** Ticks between pin guesses. 1 is fine; raise it if a server throttles packets. */
     public static int locksSolveDelay = 1;
 
@@ -127,6 +132,23 @@ public final class FeatureConfig {
     public static boolean enchantPreview = true;
 
     // ----------------------------------------------------------- Reskillable
+    /**
+     * Route attacks through mod attack packets instead of the vanilla path. This is what makes
+     * level-locked weapons deal damage - discovered via the nunchaku triggerbot.
+     */
+    public static boolean weaponPacketBypass = true;
+    /** Keep attacking while the button is held, not just on the initial click. */
+    public static boolean weaponBypassHeldAttack = true;
+    /** Minimum vanilla attack charge before the bypass fires. 1.0 = fully charged. */
+    public static double weaponBypassMinCharge = 0.9D;
+
+    // Individually switchable so you can isolate which packet your server honours.
+    public static boolean bypassPacketRlcombat = true;
+    public static boolean bypassPacketSpartan = true;
+    public static boolean bypassPacketIaf = true;
+    public static boolean bypassPacketTrinkets = true;
+    public static boolean bypassPacketVanilla = true;
+
     /** Run the attack swap even when the lock state cannot be determined. */
     public static boolean reskillableForceSwap = false;
     /** One-tick equipment desync so level-locked weapons still deal their damage. */

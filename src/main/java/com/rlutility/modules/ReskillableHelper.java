@@ -284,6 +284,9 @@ public class ReskillableHelper {
                 + " \u00a77(" + ReskillableAttackBypass.getSuccessCount() + " swaps, "
                 + ReskillableAttackBypass.getLastResult() + ")");
         out.add("  force swap: " + (FeatureConfig.reskillableForceSwap ? "\u00a7aon" : "\u00a77off"));
+        out.add("  packet bypass: " + (FeatureConfig.weaponPacketBypass ? "\u00a7aon" : "\u00a7cOFF")
+                + " \u00a77(" + WeaponLockBypassHandler.getAttackCount() + " attacks, last sent: "
+                + TriggerbotHandler.lastDispatched + ")");
 
         if (!MOD_LOADED) return out;
 

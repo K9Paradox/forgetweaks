@@ -176,6 +176,10 @@ public final class FeatureRegistry {
                 + "guesses cannot break it, then brute forces the permutation.",
                 Category.EXPLOITS, Compat.MODDED,
                 () -> FeatureConfig.locksAutoSolve, v -> FeatureConfig.locksAutoSolve = v);
+        f("Lock: Disarm Pick", "Swap the pick away so wrong guesses cannot break it. Turn OFF if the "
+                + "lock GUI closes instantly - some builds close it when the pick leaves your hand.",
+                Category.EXPLOITS, Compat.MODDED,
+                () -> FeatureConfig.locksDisarmPick, v -> FeatureConfig.locksDisarmPick = v);
         s("Lock Solve Delay", "Ticks between pin guesses. Raise it if a server throttles packets.",
                 Category.EXPLOITS,
                 () -> FeatureConfig.locksSolveDelay + "t",
@@ -200,6 +204,27 @@ public final class FeatureRegistry {
                 + "This reverts that. The server still decides the outcome.",
                 Category.COMBAT, Compat.LOCAL,
                 () -> FeatureConfig.reskillableBypass, v -> FeatureConfig.reskillableBypass = v);
+
+        f("Packet Attack Bypass", "THE weapon lock fix. Attacks via RLCombat/Spartan/Ice&Fire attack "
+                + "packets instead of the vanilla path, which Reskillable's lock does not stop. Keeps "
+                + "full damage and enchantments.",
+                Category.COMBAT, Compat.SERVER,
+                () -> FeatureConfig.weaponPacketBypass, v -> FeatureConfig.weaponPacketBypass = v);
+        f("Bypass: Hold To Attack", "Keep attacking while the button is held down.",
+                Category.COMBAT, Compat.LOCAL,
+                () -> FeatureConfig.weaponBypassHeldAttack, v -> FeatureConfig.weaponBypassHeldAttack = v);
+        f("Packet: RLCombat", "Send RLCombat's PacketMainhandAttack. Most likely the effective one.",
+                Category.COMBAT, Compat.SERVER,
+                () -> FeatureConfig.bypassPacketRlcombat, v -> FeatureConfig.bypassPacketRlcombat = v);
+        f("Packet: Spartan Weaponry", "Send Spartan Weaponry's PacketLongReachAttack.",
+                Category.COMBAT, Compat.SERVER,
+                () -> FeatureConfig.bypassPacketSpartan, v -> FeatureConfig.bypassPacketSpartan = v);
+        f("Packet: Ice and Fire", "Send Ice and Fire's MessagePlayerHitMultipart.",
+                Category.COMBAT, Compat.SERVER,
+                () -> FeatureConfig.bypassPacketIaf, v -> FeatureConfig.bypassPacketIaf = v);
+        f("Packet: Trinkets", "Send the Trinkets and Baubles increased-reach attack packet.",
+                Category.COMBAT, Compat.SERVER,
+                () -> FeatureConfig.bypassPacketTrinkets, v -> FeatureConfig.bypassPacketTrinkets = v);
 
         f("Weapon Lock Bypass", "Beats Reskillable's level lock on weapons with a one-tick equipment "
                 + "desync: the server still has the sword's damage attribute but sees an empty hand, "
