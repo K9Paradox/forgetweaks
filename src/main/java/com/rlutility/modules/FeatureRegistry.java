@@ -172,6 +172,19 @@ public final class FeatureRegistry {
                 d -> FeatureConfig.autoLootDelay = (int) clamp(FeatureConfig.autoLootDelay + d, 0, 10));
 
         // -------------------------------------------------------------- TOOLS
+        f("Lock Auto-Solve", "Solves Locks lock-picking with zero risk: swaps your pick out so wrong "
+                + "guesses cannot break it, then brute forces the permutation.",
+                Category.EXPLOITS, Compat.MODDED,
+                () -> FeatureConfig.locksAutoSolve, v -> FeatureConfig.locksAutoSolve = v);
+        s("Lock Solve Delay", "Ticks between pin guesses. Raise it if a server throttles packets.",
+                Category.EXPLOITS,
+                () -> FeatureConfig.locksSolveDelay + "t",
+                d -> FeatureConfig.locksSolveDelay = (int) clamp(FeatureConfig.locksSolveDelay + d, 1, 20));
+        f("Enchant Preview", "Shows the exact enchantments all three table slots will give. Pure "
+                + "observation - the server hands the client its xpSeed, so nothing is sent.",
+                Category.VISUALS, Compat.LOCAL,
+                () -> FeatureConfig.enchantPreview, v -> FeatureConfig.enchantPreview = v);
+
         f("Magnet: Only My Drops", "Ignore items that another player dropped.",
                 Category.TOOLS, Compat.LOCAL,
                 () -> FeatureConfig.magnetOnlyMine, v -> FeatureConfig.magnetOnlyMine = v);

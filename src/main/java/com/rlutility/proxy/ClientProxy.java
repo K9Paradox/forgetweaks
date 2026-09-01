@@ -25,6 +25,8 @@ import com.rlutility.modules.ItemMagnetHandler;
 import com.rlutility.modules.JesusHandler;
 import com.rlutility.modules.KillAuraHandler;
 import com.rlutility.modules.DupeExploitHandler;
+import com.rlutility.modules.EnchantPreviewHandler;
+import com.rlutility.modules.LocksExploitHandler;
 import com.rlutility.modules.QuestExploitHandler;
 import com.rlutility.modules.ReskillableAttackBypass;
 import com.rlutility.modules.LevelUpExploitHandler;
@@ -90,6 +92,8 @@ public class ClientProxy extends CommonProxy {
         // ---- mod-channel exploits (server must run the mod, RLCraft does) ---
         MinecraftForge.EVENT_BUS.register(new AutoReforgerHandler());
         MinecraftForge.EVENT_BUS.register(new LocksHelper());
+        MinecraftForge.EVENT_BUS.register(new LocksExploitHandler());
+        MinecraftForge.EVENT_BUS.register(new EnchantPreviewHandler());
         MinecraftForge.EVENT_BUS.register(new ItemMagnetHandler());
         MinecraftForge.EVENT_BUS.register(new FirstAidHelper());
         MinecraftForge.EVENT_BUS.register(new SimpleDifficultyHelper());

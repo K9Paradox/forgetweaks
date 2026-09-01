@@ -113,6 +113,15 @@ public final class FeatureConfig {
     /** Never pull these item ids. Applied after the whitelist. */
     public static String magnetBlacklist = "minecraft:rotten_flesh,minecraft:poisonous_potato";
 
+    // ---------------------------------------------------------------- Locks
+    /** Auto-solve lock picking by disarming the pick so wrong guesses cost nothing. */
+    public static boolean locksAutoSolve = true;
+    /** Ticks between pin guesses. 1 is fine; raise it if a server throttles packets. */
+    public static int locksSolveDelay = 1;
+
+    /** Show the exact enchantments each table slot will give, derived from the synced xpSeed. */
+    public static boolean enchantPreview = true;
+
     // ----------------------------------------------------------- Reskillable
     /** One-tick equipment desync so level-locked weapons still deal their damage. */
     public static boolean reskillableAttackBypass = true;
