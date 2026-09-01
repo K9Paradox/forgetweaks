@@ -180,6 +180,11 @@ public final class FeatureRegistry {
                 + "lock GUI closes instantly - some builds close it when the pick leaves your hand.",
                 Category.EXPLOITS, Compat.MODDED,
                 () -> FeatureConfig.locksDisarmPick, v -> FeatureConfig.locksDisarmPick = v);
+        f("Lock: Burst Mode", "Send every candidate pin each tick instead of one. Far faster, since "
+                + "wrong guesses are free. Turn OFF to learn the actual combination (needed only for "
+                + "seed cracking).",
+                Category.EXPLOITS, Compat.MODDED,
+                () -> FeatureConfig.locksBurstMode, v -> FeatureConfig.locksBurstMode = v);
         s("Lock Solve Delay", "Ticks between pin guesses. Raise it if a server throttles packets.",
                 Category.EXPLOITS,
                 () -> FeatureConfig.locksSolveDelay + "t",
@@ -225,17 +230,6 @@ public final class FeatureRegistry {
         f("Packet: Trinkets", "Send the Trinkets and Baubles increased-reach attack packet.",
                 Category.COMBAT, Compat.SERVER,
                 () -> FeatureConfig.bypassPacketTrinkets, v -> FeatureConfig.bypassPacketTrinkets = v);
-
-        f("Weapon Lock Bypass", "Beats Reskillable's level lock on weapons with a one-tick equipment "
-                + "desync: the server still has the sword's damage attribute but sees an empty hand, "
-                + "so the check is skipped. Loses enchant bonuses and durability wear.",
-                Category.COMBAT, Compat.SERVER,
-                () -> FeatureConfig.reskillableAttackBypass, v -> FeatureConfig.reskillableAttackBypass = v);
-
-        f("Force Attack Swap", "Always run the attack swap, even when the lock check cannot be read. "
-                + "Turn this on if Weapon Lock Bypass appears to do nothing.",
-                Category.COMBAT, Compat.SERVER,
-                () -> FeatureConfig.reskillableForceSwap, v -> FeatureConfig.reskillableForceSwap = v);
 
         f("Reskillable Auto-Buy", "Automatically spend XP levels to unlock the item you are holding.",
                 Category.TOOLS, Compat.MODDED,

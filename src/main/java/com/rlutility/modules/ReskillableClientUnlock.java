@@ -27,7 +27,7 @@ import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
  *   <li><b>Not sufficient</b> - once the packet does go out, the server runs the same check against
  *       its own copy of your levels and can still refuse. Block breaking usually survives because it
  *       is heavily client-predicted; melee damage does not, which is what
- *       {@link ReskillableAttackBypass} is for.</li>
+ *       {@link WeaponLockBypassHandler} is for.</li>
  * </ul>
  *
  * <p>Deliberately absent: the old code also wrote {@code info.setLevel(32)} into the local

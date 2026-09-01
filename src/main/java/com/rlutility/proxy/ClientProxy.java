@@ -29,7 +29,6 @@ import com.rlutility.modules.EnchantPreviewHandler;
 import com.rlutility.modules.ReskillableClientUnlock;
 import com.rlutility.modules.LocksExploitHandler;
 import com.rlutility.modules.QuestExploitHandler;
-import com.rlutility.modules.ReskillableAttackBypass;
 import com.rlutility.modules.LevelUpExploitHandler;
 import com.rlutility.modules.XRayHandler;
 import com.rlutility.modules.LocksHelper;
@@ -41,6 +40,7 @@ import com.rlutility.modules.SimpleDifficultyHelper;
 import com.rlutility.modules.StepSpeedHandler;
 import com.rlutility.modules.TimerHandler;
 import com.rlutility.modules.TriggerbotHandler;
+import com.rlutility.modules.WeaponLockBypassHandler;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.settings.KeyBinding;
 import net.minecraftforge.client.ClientCommandHandler;
@@ -104,7 +104,6 @@ public class ClientProxy extends CommonProxy {
         MinecraftForge.EVENT_BUS.register(new DebuffPurgerHandler());
         MinecraftForge.EVENT_BUS.register(new ReskillableHelper());
         MinecraftForge.EVENT_BUS.register(new ReskillableClientUnlock());
-        MinecraftForge.EVENT_BUS.register(new ReskillableAttackBypass());
         MinecraftForge.EVENT_BUS.register(new EspRenderHelper());
         MinecraftForge.EVENT_BUS.register(new XRayHandler());
         MinecraftForge.EVENT_BUS.register(new HudOverlay());
@@ -151,7 +150,6 @@ public class ClientProxy extends CommonProxy {
     public void onDisconnect(FMLNetworkEvent.ClientDisconnectionFromServerEvent event) {
         TimerHandler.reset();
         DupeExploitHandler.onDisconnect();
-        ReskillableAttackBypass.reset();
         XRayHandler.forceRescan();
     }
 

@@ -121,6 +121,11 @@ public final class FeatureConfig {
      * and the mod's GUI closes itself, so this is skipped when the combination is already known.
      */
     public static boolean locksDisarmPick = true;
+    /**
+     * Fire every candidate pin each tick instead of one. Solves in roughly one ping per pin rather
+     * than one per guess. Trades away learning the combination, which only matters for seed cracking.
+     */
+    public static boolean locksBurstMode = true;
     /** Ticks between pin guesses. 1 is fine; raise it if a server throttles packets. */
     public static int locksSolveDelay = 1;
 
@@ -149,10 +154,6 @@ public final class FeatureConfig {
     public static boolean bypassPacketTrinkets = true;
     public static boolean bypassPacketVanilla = true;
 
-    /** Run the attack swap even when the lock state cannot be determined. */
-    public static boolean reskillableForceSwap = false;
-    /** One-tick equipment desync so level-locked weapons still deal their damage. */
-    public static boolean reskillableAttackBypass = true;
     /** Automatically spend XP on Reskillable levels needed by the item you are holding. */
     public static boolean reskillableAutoBuy = false;
     /** Keep this many XP levels in reserve when auto-buying. */

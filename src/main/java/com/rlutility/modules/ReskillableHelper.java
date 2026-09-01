@@ -280,10 +280,6 @@ public class ReskillableHelper {
         out.add("  mod loaded: " + (MOD_LOADED ? "\u00a7ayes" : "\u00a7cno"));
         out.add("  client un-cancel: " + (FeatureConfig.reskillableBypass ? "\u00a7aon" : "\u00a7cOFF")
                 + " \u00a77(reverted " + ReskillableClientUnlock.getUnCancelCount() + " cancels)");
-        out.add("  attack bypass: " + (FeatureConfig.reskillableAttackBypass ? "\u00a7aon" : "\u00a7cOFF")
-                + " \u00a77(" + ReskillableAttackBypass.getSuccessCount() + " swaps, "
-                + ReskillableAttackBypass.getLastResult() + ")");
-        out.add("  force swap: " + (FeatureConfig.reskillableForceSwap ? "\u00a7aon" : "\u00a77off"));
         out.add("  packet bypass: " + (FeatureConfig.weaponPacketBypass ? "\u00a7aon" : "\u00a7cOFF")
                 + " \u00a77(" + WeaponLockBypassHandler.getAttackCount() + " attacks, last sent: "
                 + TriggerbotHandler.lastDispatched + ")");
