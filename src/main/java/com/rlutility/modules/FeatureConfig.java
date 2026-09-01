@@ -126,6 +126,8 @@ public final class FeatureConfig {
      * than one per guess. Trades away learning the combination, which only matters for seed cracking.
      */
     public static boolean locksBurstMode = true;
+    /** Echo every solver step to chat as well as logs/latest.log. */
+    public static boolean locksVerbose = true;
     /** Solve sequentially until this many combinations are on file, so seed cracking has vectors. */
     public static int locksLearnTarget = 2;
     /** Ticks between pin guesses. 1 is fine; raise it if a server throttles packets. */
