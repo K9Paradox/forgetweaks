@@ -73,6 +73,12 @@ public class ReskillableAttackBypass {
     private static int restoreDelay = 0;
     private static int warnCooldown = 0;
     private static int successes = 0;
+    private static volatile String lastResult = "never triggered";
+
+    /** Human-readable outcome of the last attempt, for /rlu diag. */
+    public static String getLastResult() {
+        return lastResult;
+    }
 
     public static boolean isActive() {
         return savedSlot >= 0;
@@ -135,13 +141,21 @@ public class ReskillableAttackBypass {
         EntityPlayerSP player = mc.player;
         if (player == null || savedSlot >= 0) return;
 
-        // Nothing to do if the server would already accept this weapon.
-        if (ReskillableHelper.canUseHeldItem()) return;
+        // Nothing to do if the server would already accept this weapon. When the check cannot be
+        // resolved we normally stay out of the way, but Force Attack Swap overrides that.
+        boolean usable = ReskillableHelper.canUseHeldItem();
+        if (usable && !FeatureConfig.reskillableForceSwap) {
+            lastResult = ReskillableHelper.lastLockResolved
+                    ? "skipped: item is not locked"
+                    : "skipped: lock unreadable (" + ReskillableHelper.lastLockError + ") - try Force Attack Swap";
+            return;
+        }
 
         int target = findBypassSlot(player);
         if (target < 0) {
             if (warnCooldown == 0) {
                 warnCooldown = 100;
+                lastResult = "no free hotbar slot";
                 chat("\u00a7cAttack bypass needs a free hotbar slot. Empty one and try again.");
             }
             return;
@@ -149,6 +163,7 @@ public class ReskillableAttackBypass {
 
         savedSlot = player.inventory.currentItem;
         player.inventory.currentItem = target;
+        lastResult = "swapped " + savedSlot + "->" + target + " via " + reason;
         // Two ticks is enough for syncCurrentPlayItem to emit the change and the attack to follow.
         restoreDelay = 2;
         successes++;

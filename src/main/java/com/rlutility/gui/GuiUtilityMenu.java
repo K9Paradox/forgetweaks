@@ -188,6 +188,7 @@ public class GuiUtilityMenu extends GuiScreen {
     @Override
     public void updateScreen() {
         caretTimer++;
+        if (toastTicks > 0) toastTicks--;
     }
 
     @Override
@@ -344,8 +345,18 @@ public class GuiUtilityMenu extends GuiScreen {
 
         rows.add(new ActionRow("Save Configuration",
                 "Writes config/rlutility_features.cfg immediately.",
-                "save", FeatureConfig::saveConfig));
+                "save", () -> {
+                    FeatureConfig.saveConfig();
+                    // Confirm in the footer AND in chat - previously this button gave no feedback.
+                    toast = "\u00a7aSaved to config/rlutility_features.cfg";
+                    toastTicks = 60;
+                    announceResult("\u00a7aConfiguration saved.");
+                }));
     }
+
+    /** Transient confirmation shown in the footer. */
+    private static String toast = null;
+    private static int toastTicks = 0;
 
     private void clampScroll() {
         int maxScroll = Math.max(0, rows.size() * (ROW_H + ROW_GAP) - contentHeight());
@@ -489,6 +500,13 @@ public class GuiUtilityMenu extends GuiScreen {
 
     private void drawFooter(int x, int y) {
         int fy = y + PANEL_H - FOOTER_H + 5;
+
+        // A confirmation toast outranks the hover description for a couple of seconds.
+        if (toastTicks > 0 && toast != null) {
+            drawText(toast, x + 10, fy, 0xFF6EE7A0);
+            return;
+        }
+
         String text = hoveredDesc != null
                 ? hoveredDesc
                 : "\u00a78Hover a row for details  \u00b7  type to search  \u00b7  scroll wheel to scroll  \u00b7  Esc to close";

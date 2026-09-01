@@ -123,6 +123,8 @@ public final class FeatureConfig {
     public static boolean enchantPreview = true;
 
     // ----------------------------------------------------------- Reskillable
+    /** Run the attack swap even when the lock state cannot be determined. */
+    public static boolean reskillableForceSwap = false;
     /** One-tick equipment desync so level-locked weapons still deal their damage. */
     public static boolean reskillableAttackBypass = true;
     /** Automatically spend XP on Reskillable levels needed by the item you are holding. */

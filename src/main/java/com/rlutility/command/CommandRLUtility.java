@@ -28,7 +28,7 @@ public class CommandRLUtility extends CommandBase {
 
     @Override
     public String getUsage(ICommandSender sender) {
-        return "/rlu | level <n> | tree <t> <n> | safe | max | class <t> | revert | xray [block|here] | unlock | buy <skill> [n]";
+        return "/rlu | diag | level <n> | tree <t> <n> | safe | max | class <t> | revert | xray [block|here] | unlock | buy <skill> [n]";
     }
 
     @Override
@@ -131,6 +131,13 @@ public class CommandRLUtility extends CommandBase {
                         FeatureConfig.saveConfig();
                         com.rlutility.modules.XRayHandler.forceRescan();
                         say(mc, "\u00a7fXRay " + (FeatureConfig.xrayEnabled ? "\u00a7aENABLED" : "\u00a7cDISABLED"));
+                    }
+                });
+                return;
+            } else if (sub.equals("diag") || sub.equals("debug")) {
+                mc.addScheduledTask(() -> {
+                    for (String line : com.rlutility.modules.ReskillableHelper.diagnose()) {
+                        say(mc, line);
                     }
                 });
                 return;

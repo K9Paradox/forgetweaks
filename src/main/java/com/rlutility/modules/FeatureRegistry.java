@@ -195,11 +195,22 @@ public final class FeatureRegistry {
                 () -> String.format("%.2f", FeatureConfig.magnetSpeed),
                 d -> FeatureConfig.magnetSpeed = clamp(FeatureConfig.magnetSpeed + 0.05 * d, 0.05, 2.0));
 
+        f("Client Lock Un-cancel", "REQUIRED for locked tools. Reskillable runs on your client too and "
+                + "cancels mining/interaction locally, so the packet never even reaches the server. "
+                + "This reverts that. The server still decides the outcome.",
+                Category.COMBAT, Compat.LOCAL,
+                () -> FeatureConfig.reskillableBypass, v -> FeatureConfig.reskillableBypass = v);
+
         f("Weapon Lock Bypass", "Beats Reskillable's level lock on weapons with a one-tick equipment "
                 + "desync: the server still has the sword's damage attribute but sees an empty hand, "
                 + "so the check is skipped. Loses enchant bonuses and durability wear.",
                 Category.COMBAT, Compat.SERVER,
                 () -> FeatureConfig.reskillableAttackBypass, v -> FeatureConfig.reskillableAttackBypass = v);
+
+        f("Force Attack Swap", "Always run the attack swap, even when the lock check cannot be read. "
+                + "Turn this on if Weapon Lock Bypass appears to do nothing.",
+                Category.COMBAT, Compat.SERVER,
+                () -> FeatureConfig.reskillableForceSwap, v -> FeatureConfig.reskillableForceSwap = v);
 
         f("Reskillable Auto-Buy", "Automatically spend XP levels to unlock the item you are holding.",
                 Category.TOOLS, Compat.MODDED,

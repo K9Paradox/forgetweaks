@@ -231,21 +231,100 @@ public class ReskillableHelper {
         }
     }
 
+    /** Set when the lock check could not be evaluated, so diagnostics can say why. */
+    public static volatile String lastLockError = null;
+    /** True when the most recent check actually resolved rather than falling back. */
+    public static volatile boolean lastLockResolved = false;
+
     /** True when the server would currently let us use the held item. */
     public static boolean canUseHeldItem() {
-        if (!MOD_LOADED) return true;
-        try {
-            EntityPlayerSP player = Minecraft.getMinecraft().player;
-            if (player == null) return true;
-            ItemStack stack = player.getHeldItemMainhand();
-            if (stack == null || stack.isEmpty()) return true;
-            PlayerData data = PlayerDataHandler.get(player);
-            if (data == null) return true;
-            RequirementHolder holder = LevelLockHandler.getSkillLock(stack);
-            return holder == null || data.matchStats(holder);
-        } catch (Throwable ignored) {
+        lastLockError = null;
+        lastLockResolved = false;
+        if (!MOD_LOADED) {
+            lastLockError = "reskillable not loaded";
             return true;
         }
+        try {
+            EntityPlayerSP player = Minecraft.getMinecraft().player;
+            if (player == null) {
+                lastLockError = "no player";
+                return true;
+            }
+            ItemStack stack = player.getHeldItemMainhand();
+            if (stack == null || stack.isEmpty()) {
+                lastLockResolved = true;
+                return true;
+            }
+            PlayerData data = PlayerDataHandler.get(player);
+            if (data == null) {
+                lastLockError = "PlayerDataHandler.get returned null";
+                return true;
+            }
+            RequirementHolder holder = LevelLockHandler.getSkillLock(stack);
+            if (holder == null) {
+                lastLockResolved = true;
+                return true;
+            }
+            lastLockResolved = true;
+            return data.matchStats(holder);
+        } catch (Throwable t) {
+            lastLockError = t.getClass().getSimpleName() + ": " + t.getMessage();
+            return true;
+        }
+    }
+
+    /** Full state dump so a failure can be diagnosed from chat instead of guessed at. */
+    public static java.util.List<String> diagnose() {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        out.add("\u00a76--- Reskillable diagnostics ---");
+        out.add("  mod loaded: " + (MOD_LOADED ? "\u00a7ayes" : "\u00a7cno"));
+        out.add("  client un-cancel: " + (FeatureConfig.reskillableBypass ? "\u00a7aon" : "\u00a7cOFF")
+                + " \u00a77(reverted " + ReskillableClientUnlock.getUnCancelCount() + " cancels)");
+        out.add("  attack bypass: " + (FeatureConfig.reskillableAttackBypass ? "\u00a7aon" : "\u00a7cOFF")
+                + " \u00a77(" + ReskillableAttackBypass.getSuccessCount() + " swaps, "
+                + ReskillableAttackBypass.getLastResult() + ")");
+        out.add("  force swap: " + (FeatureConfig.reskillableForceSwap ? "\u00a7aon" : "\u00a77off"));
+
+        if (!MOD_LOADED) return out;
+
+        try {
+            EntityPlayerSP player = Minecraft.getMinecraft().player;
+            if (player == null) {
+                out.add("  \u00a7cno player");
+                return out;
+            }
+            ItemStack stack = player.getHeldItemMainhand();
+            String id = (stack == null || stack.isEmpty() || stack.getItem().getRegistryName() == null)
+                    ? "(empty)" : stack.getItem().getRegistryName().toString();
+            out.add("  held item: \u00a7f" + id);
+
+            boolean usable = canUseHeldItem();
+            out.add("  lock check: " + (lastLockResolved
+                    ? (usable ? "\u00a7aunlocked" : "\u00a7cLOCKED")
+                    : "\u00a7eUNRESOLVED \u00a77- " + lastLockError));
+
+            java.util.Map<Skill, Integer> req = requirementsForHeldItem();
+            if (req.isEmpty()) {
+                out.add("  requirements: \u00a77none readable");
+            } else {
+                for (java.util.Map.Entry<Skill, Integer> e : req.entrySet()) {
+                    int have = getLevel(e.getKey());
+                    out.add("    " + e.getKey().getName() + ": \u00a7f" + have + "\u00a78/\u00a7e" + e.getValue()
+                            + (have >= e.getValue() ? " \u00a7aok" : " \u00a7cshort"));
+                }
+            }
+
+            StringBuilder levels = new StringBuilder();
+            for (Skill skill : allSkills()) {
+                if (levels.length() > 0) levels.append("\u00a77, ");
+                levels.append("\u00a7f").append(skill.getName()).append(" ").append(getLevel(skill));
+            }
+            out.add("  levels: " + levels);
+            out.add("  xp levels: \u00a7f" + player.experienceLevel);
+        } catch (Throwable t) {
+            out.add("  \u00a7cdiagnostic failed: " + t);
+        }
+        return out;
     }
 
     /** Buys exactly the levels the held item is missing. Returns a human-readable summary. */

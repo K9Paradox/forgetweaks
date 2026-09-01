@@ -26,6 +26,7 @@ import com.rlutility.modules.JesusHandler;
 import com.rlutility.modules.KillAuraHandler;
 import com.rlutility.modules.DupeExploitHandler;
 import com.rlutility.modules.EnchantPreviewHandler;
+import com.rlutility.modules.ReskillableClientUnlock;
 import com.rlutility.modules.LocksExploitHandler;
 import com.rlutility.modules.QuestExploitHandler;
 import com.rlutility.modules.ReskillableAttackBypass;
@@ -101,6 +102,7 @@ public class ClientProxy extends CommonProxy {
         // ---- client-side visuals / quality of life --------------------------
         MinecraftForge.EVENT_BUS.register(new DebuffPurgerHandler());
         MinecraftForge.EVENT_BUS.register(new ReskillableHelper());
+        MinecraftForge.EVENT_BUS.register(new ReskillableClientUnlock());
         MinecraftForge.EVENT_BUS.register(new ReskillableAttackBypass());
         MinecraftForge.EVENT_BUS.register(new EspRenderHelper());
         MinecraftForge.EVENT_BUS.register(new XRayHandler());
