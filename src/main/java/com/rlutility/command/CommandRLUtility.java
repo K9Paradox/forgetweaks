@@ -28,7 +28,7 @@ public class CommandRLUtility extends CommandBase {
 
     @Override
     public String getUsage(ICommandSender sender) {
-        return "/rlu | diag | lockseed <seed> | lockcrack | lockdiag | level <n> | tree <t> <n> | safe | max | class <t> | revert | xray [block|here] | unlock | buy <skill> [n]";
+        return "/rlu | diag | lockseed <seed> | lockcrack | lockdiag | lockadd | level <n> | tree <t> <n> | safe | max | class <t> | revert | xray [block|here] | unlock | buy <skill> [n]";
     }
 
     @Override
@@ -131,6 +131,29 @@ public class CommandRLUtility extends CommandBase {
                         FeatureConfig.saveConfig();
                         com.rlutility.modules.XRayHandler.forceRescan();
                         say(mc, "\u00a7fXRay " + (FeatureConfig.xrayEnabled ? "\u00a7aENABLED" : "\u00a7cDISABLED"));
+                    }
+                });
+                return;
+            } else if (sub.equals("lockadd")) {
+                // /rlu lockadd <lockId> <p0> <p1> ...   - record a hand-solved combination
+                if (args.length < 3) {
+                    mc.addScheduledTask(() -> {
+                        say(mc, "\u00a7cUsage: /rlu lockadd <lockId> <pin0> <pin1> ...");
+                        say(mc, "\u00a77Get the lock id from /rlu lockdiag after opening the lock.");
+                    });
+                    return;
+                }
+                final String[] a = args;
+                mc.addScheduledTask(() -> {
+                    try {
+                        int id = Integer.parseInt(a[1].trim());
+                        byte[] combo = new byte[a.length - 2];
+                        for (int i = 2; i < a.length; i++) {
+                            combo[i - 2] = Byte.parseByte(a[i].trim());
+                        }
+                        say(mc, com.rlutility.modules.LocksExploitHandler.addManual(id, combo));
+                    } catch (NumberFormatException e) {
+                        say(mc, "\u00a7cAll arguments must be whole numbers.");
                     }
                 });
                 return;
