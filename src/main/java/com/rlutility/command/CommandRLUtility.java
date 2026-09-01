@@ -28,7 +28,7 @@ public class CommandRLUtility extends CommandBase {
 
     @Override
     public String getUsage(ICommandSender sender) {
-        return "/rlu | diag | lockseed <seed> | lockcrack | lockdiag | lockadd | level <n> | tree <t> <n> | safe | max | class <t> | revert | xray [block|here] | unlock | buy <skill> [n]";
+        return "/rlu | diag | lockseed <seed> | lockcrack | lockdiag | lockadd | attacktest | level <n> | tree <t> <n> | safe | max | class <t> | revert | xray [block|here] | unlock | buy <skill> [n]";
     }
 
     @Override
@@ -131,6 +131,16 @@ public class CommandRLUtility extends CommandBase {
                         FeatureConfig.saveConfig();
                         com.rlutility.modules.XRayHandler.forceRescan();
                         say(mc, "\u00a7fXRay " + (FeatureConfig.xrayEnabled ? "\u00a7aENABLED" : "\u00a7cDISABLED"));
+                    }
+                });
+                return;
+            } else if (sub.equals("attacktest")) {
+                mc.addScheduledTask(() -> {
+                    if (args.length > 1 && args[1].equalsIgnoreCase("stop")) {
+                        com.rlutility.modules.AttackMethodTester.stop();
+                        say(mc, "\u00a7eAttack test stopped.");
+                    } else {
+                        com.rlutility.modules.AttackMethodTester.start();
                     }
                 });
                 return;

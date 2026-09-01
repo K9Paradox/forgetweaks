@@ -24,6 +24,7 @@ import com.rlutility.modules.FirstAidHelper;
 import com.rlutility.modules.ItemMagnetHandler;
 import com.rlutility.modules.JesusHandler;
 import com.rlutility.modules.KillAuraHandler;
+import com.rlutility.modules.AttackMethodTester;
 import com.rlutility.modules.DupeExploitHandler;
 import com.rlutility.modules.EnchantPreviewHandler;
 import com.rlutility.modules.ReskillableClientUnlock;
@@ -82,6 +83,7 @@ public class ClientProxy extends CommonProxy {
         MinecraftForge.EVENT_BUS.register(new MovementEventHandler());
         MinecraftForge.EVENT_BUS.register(new TriggerbotHandler());
         MinecraftForge.EVENT_BUS.register(new WeaponLockBypassHandler());
+        MinecraftForge.EVENT_BUS.register(new AttackMethodTester());
 
         // ---- server-authoritative inventory automation ----------------------
         MinecraftForge.EVENT_BUS.register(new FastTriageHandler());
