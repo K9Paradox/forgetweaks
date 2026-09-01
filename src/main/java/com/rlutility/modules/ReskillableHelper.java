@@ -217,6 +217,20 @@ public class ReskillableHelper {
         return out;
     }
 
+    /** True when the server would currently let us use this specific stack. */
+    public static boolean canUseStack(ItemStack stack) {
+        if (!MOD_LOADED) return true;
+        try {
+            if (stack == null || stack.isEmpty()) return true;
+            PlayerData data = PlayerDataHandler.get(Minecraft.getMinecraft().player);
+            if (data == null) return true;
+            RequirementHolder holder = LevelLockHandler.getSkillLock(stack);
+            return holder == null || data.matchStats(holder);
+        } catch (Throwable ignored) {
+            return true;
+        }
+    }
+
     /** True when the server would currently let us use the held item. */
     public static boolean canUseHeldItem() {
         if (!MOD_LOADED) return true;

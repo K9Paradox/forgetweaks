@@ -25,6 +25,8 @@ import com.rlutility.modules.ItemMagnetHandler;
 import com.rlutility.modules.JesusHandler;
 import com.rlutility.modules.KillAuraHandler;
 import com.rlutility.modules.DupeExploitHandler;
+import com.rlutility.modules.QuestExploitHandler;
+import com.rlutility.modules.ReskillableAttackBypass;
 import com.rlutility.modules.LevelUpExploitHandler;
 import com.rlutility.modules.XRayHandler;
 import com.rlutility.modules.LocksHelper;
@@ -95,6 +97,7 @@ public class ClientProxy extends CommonProxy {
         // ---- client-side visuals / quality of life --------------------------
         MinecraftForge.EVENT_BUS.register(new DebuffPurgerHandler());
         MinecraftForge.EVENT_BUS.register(new ReskillableHelper());
+        MinecraftForge.EVENT_BUS.register(new ReskillableAttackBypass());
         MinecraftForge.EVENT_BUS.register(new EspRenderHelper());
         MinecraftForge.EVENT_BUS.register(new XRayHandler());
         MinecraftForge.EVENT_BUS.register(new HudOverlay());
@@ -117,6 +120,7 @@ public class ClientProxy extends CommonProxy {
         // Reports whether the server actually accepted the last Level Up! 2 skill packet.
         LevelUpExploitHandler.tick();
         DupeExploitHandler.tick();
+        QuestExploitHandler.tick();
 
         if (mc.currentScreen != null) return;
 
@@ -140,6 +144,7 @@ public class ClientProxy extends CommonProxy {
     public void onDisconnect(FMLNetworkEvent.ClientDisconnectionFromServerEvent event) {
         TimerHandler.reset();
         DupeExploitHandler.onDisconnect();
+        ReskillableAttackBypass.reset();
         XRayHandler.forceRescan();
     }
 

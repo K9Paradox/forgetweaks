@@ -8,10 +8,13 @@ import com.rlutility.modules.FeatureRegistry;
 import com.rlutility.modules.DupeExploitHandler;
 import com.rlutility.modules.EspRenderHelper;
 import com.rlutility.modules.LevelUpExploitHandler;
+import com.rlutility.modules.QuestExploitHandler;
 import com.rlutility.modules.ReskillableHelper;
 import com.rlutility.modules.XRayHandler;
 import net.minecraft.client.gui.GuiScreen;
+import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.client.renderer.GlStateManager;
+import org.lwjgl.opengl.GL11;
 import net.minecraft.util.ChatAllowedCharacters;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
@@ -45,13 +48,14 @@ public class GuiUtilityMenu extends GuiScreen {
     private static final int COL_LINE      = 0xFF1E2733;
 
     // ----------------------------------------------------------------- layout
-    private static final int PANEL_W = 470;
-    private static final int PANEL_H = 280;
+    private static final int PANEL_W = 480;
+    private static final int PANEL_H = 286;
     private static final int HEADER_H = 30;
     private static final int FOOTER_H = 38;
-    private static final int RAIL_W = 106;
-    private static final int ROW_H = 20;
-    private static final int ROW_GAP = 2;
+    private static final int RAIL_W = 110;
+    private static final int SCROLLBAR_W = 4;
+    private static final int ROW_H = 22;
+    private static final int ROW_GAP = 3;
     private static final int FOOTER_LINES = 3;
 
     // ------------------------------------------------------------------ state
@@ -69,6 +73,31 @@ public class GuiUtilityMenu extends GuiScreen {
     /** Wrapper so the nested row classes never touch Gui's protected static drawRect directly. */
     private static void rect(int left, int top, int right, int bottom, int color) {
         drawRect(left, top, right, bottom, color);
+    }
+
+    /**
+     * Clip drawing to a rectangle. Without this a row that is only half scrolled into view still
+     * draws in full and bleeds over the header and footer, which was the main source of overlap.
+     * GL scissor coordinates are in real pixels from the bottom-left, hence the scale conversion.
+     */
+    private void beginClip(int left, int top, int right, int bottom) {
+        ScaledResolution res = new ScaledResolution(mc);
+        int scale = res.getScaleFactor();
+        GL11.glEnable(GL11.GL_SCISSOR_TEST);
+        GL11.glScissor(left * scale,
+                mc.displayHeight - bottom * scale,
+                Math.max(0, (right - left)) * scale,
+                Math.max(0, (bottom - top)) * scale);
+    }
+
+    private void endClip() {
+        GL11.glDisable(GL11.GL_SCISSOR_TEST);
+    }
+
+    /** Trims text to fit, appending an ellipsis, so labels never run under the controls. */
+    String fit(String text, int maxWidth) {
+        if (fontRenderer.getStringWidth(text) <= maxWidth) return text;
+        return fontRenderer.trimStringToWidth(text, Math.max(0, maxWidth - 6)) + "\u2026";
     }
 
     private abstract static class Row {
@@ -93,13 +122,13 @@ public class GuiUtilityMenu extends GuiScreen {
         }
         @Override void render(GuiUtilityMenu gui, int x, int y, int width) {
             boolean on = feature.isEnabled();
-            gui.drawText(feature.name, x + 8, y + 6, on ? COL_TEXT : COL_DIM);
+            int pillW = 28;
+            int px = x + width - pillW - 10;
+            gui.drawText(gui.fit(feature.name, px - (x + 10) - 6), x + 10, y + 7, on ? COL_TEXT : COL_DIM);
 
-            // toggle pill
-            int px = x + width - 38;
-            int py = y + 5;
-            rect(px, py, px + 28, py + 10, on ? COL_ON : COL_OFF);
-            int knobX = on ? px + 18 : px + 1;
+            int py = y + 6;
+            rect(px, py, px + pillW, py + 10, on ? COL_ON : COL_OFF);
+            int knobX = on ? px + pillW - 10 : px + 1;
             rect(knobX, py + 1, knobX + 9, py + 9, 0xFF0C1017);
         }
     }
@@ -114,11 +143,12 @@ public class GuiUtilityMenu extends GuiScreen {
             setting.adjust(button == 1 ? -1 : 1);
         }
         @Override void render(GuiUtilityMenu gui, int x, int y, int width) {
-            gui.drawText("\u00a77" + setting.name, x + 8, y + 6, COL_DIM);
             String value = setting.value();
             int w = gui.fontRenderer.getStringWidth(value) + 14;
-            rect(x + width - w - 6, y + 3, x + width - 6, y + ROW_H - 3, 0x22FFC24B);
-            gui.drawText(value, x + width - w - 6 + 7, y + 6, COL_ACCENT);
+            int chipX = x + width - w - 10;
+            gui.drawText(gui.fit(setting.name, chipX - (x + 10) - 6), x + 10, y + 7, COL_DIM);
+            rect(chipX, y + 4, chipX + w, y + ROW_H - 4, 0x22FFC24B);
+            gui.drawText(value, chipX + 7, y + 7, COL_ACCENT);
         }
     }
 
@@ -134,12 +164,15 @@ public class GuiUtilityMenu extends GuiScreen {
             action.run();
         }
         @Override void render(GuiUtilityMenu gui, int x, int y, int width) {
-            gui.drawText(label, x + 8, y + 6, COL_TEXT);
+            int labelLimit = width - 20;
             if (value != null) {
                 int w = gui.fontRenderer.getStringWidth(value) + 14;
-                rect(x + width - w - 6, y + 3, x + width - 6, y + ROW_H - 3, 0x22FFC24B);
-                gui.drawText(value, x + width - w - 6 + 7, y + 6, COL_ACCENT);
+                int chipX = x + width - w - 10;
+                labelLimit = chipX - (x + 10) - 6;
+                rect(chipX, y + 4, chipX + w, y + ROW_H - 4, 0x22FFC24B);
+                gui.drawText(value, chipX + 7, y + 7, COL_ACCENT);
             }
+            gui.drawText(gui.fit(label, labelLimit), x + 10, y + 7, COL_TEXT);
         }
     }
 
@@ -234,6 +267,14 @@ public class GuiUtilityMenu extends GuiScreen {
                     "Buys exactly the Reskillable levels the item in your hand is missing. This spends "
                             + "real XP because the server validates every level-up - there is no free path.",
                     "buy", () -> announceResult(ReskillableHelper.unlockHeldItem())));
+        }
+
+        if (QuestExploitHandler.isModLoaded()) {
+            rows.add(new ActionRow("Quest Sweep",
+                    "BetterQuesting's quest_action channel has no permission check, and its id array is "
+                            + "client supplied. Runs a detection pass over every quest, then claims what "
+                            + "became claimable. Rewards you already qualify for only - claim is validated.",
+                    "run", QuestExploitHandler::sweepAll));
         }
 
         if (DupeExploitHandler.isModLoaded()) {
@@ -342,19 +383,21 @@ public class GuiUtilityMenu extends GuiScreen {
     }
 
     private void drawHeader(int x, int y, int mouseX, int mouseY) {
-        drawText("\u00a7lRLUtility", x + 10, y + 7, COL_ACCENT);
-        drawText("v" + RLUtilityMod.VERSION + "  \u00b7  RLCraft 2.9.3", x + 10 + fontRenderer.getStringWidth("RLUtility") + 8, y + 7, COL_DIM);
+        drawText("\u00a7lRLUtility", x + 12, y + 7, COL_ACCENT);
+        int versionX = x + 12 + fontRenderer.getStringWidth("RLUtility") + 8;
+        String version = fit("v" + RLUtilityMod.VERSION + "  \u00b7  RLCraft 2.9.3", (x + PANEL_W - 178) - versionX - 8);
+        drawText(version, versionX, y + 7, COL_DIM);
 
         // search field
-        int sx = x + PANEL_W - 168;
+        int sx = x + PANEL_W - 178;
         int sy = y + 6;
-        boolean hover = inside(mouseX, mouseY, sx, sy, 140, 18);
-        drawRect(sx, sy, sx + 140, sy + 18, hover ? 0x33FFFFFF : 0x22FFFFFF);
-        String shown = searchQuery.isEmpty() ? "\u00a78Search modules..." : searchQuery;
+        boolean hover = inside(mouseX, mouseY, sx, sy, 148, 18);
+        drawRect(sx, sy, sx + 148, sy + 18, hover ? 0x33FFFFFF : 0x22FFFFFF);
+        String shown = searchQuery.isEmpty() ? "\u00a78Search modules..." : fit(searchQuery, 136);
         drawText(shown, sx + 6, sy + 5, searchQuery.isEmpty() ? COL_DIM : COL_TEXT);
         if (!searchQuery.isEmpty() && (caretTimer / 6) % 2 == 0) {
-            int cx = sx + 6 + fontRenderer.getStringWidth(searchQuery);
-            drawRect(cx + 1, sy + 4, cx + 2, sy + 14, COL_ACCENT);
+            int caretX = Math.min(sx + 6 + fontRenderer.getStringWidth(fit(searchQuery, 136)), sx + 142);
+            drawRect(caretX + 1, sy + 4, caretX + 2, sy + 14, COL_ACCENT);
         }
 
         // close button
@@ -367,6 +410,7 @@ public class GuiUtilityMenu extends GuiScreen {
     private void drawRail(int x, int y, int mouseX, int mouseY) {
         Feature.Category[] cats = Feature.Category.values();
         int ry = y + HEADER_H + 6;
+        beginClip(x, y + HEADER_H, x + RAIL_W, y + PANEL_H - FOOTER_H);
 
         for (Feature.Category c : cats) {
             boolean selected = (c == selectedCategory) && searchQuery.isEmpty();
@@ -383,47 +427,63 @@ public class GuiUtilityMenu extends GuiScreen {
             List<Feature> inCat = FeatureRegistry.byCategory(c);
             for (Feature f : inCat) if (f.isEnabled()) enabled++;
 
-            drawText(c.title, x + 13, ry + 7, selected ? COL_ACCENT : COL_TEXT);
-            if (!inCat.isEmpty()) {
-                String count = enabled + "/" + inCat.size();
-                drawText("\u00a78" + count, x + RAIL_W - 10 - fontRenderer.getStringWidth(count), ry + 7, COL_DIM);
+            String count = inCat.isEmpty() ? null : enabled + "/" + inCat.size();
+            int countW = count == null ? 0 : fontRenderer.getStringWidth(count) + 6;
+            drawText(fit(c.title, RAIL_W - 24 - countW), x + 13, ry + 7, selected ? COL_ACCENT : COL_TEXT);
+            if (count != null) {
+                drawText("\u00a78" + count, x + RAIL_W - 10 - fontRenderer.getStringWidth(count), ry + 7,
+                        selected ? COL_ACCENT : COL_DIM);
             }
             ry += 24;
         }
+        endClip();
     }
 
     private void drawContent(int x, int y, int mouseX, int mouseY) {
-        int cx = x + RAIL_W + 5;
-        int cw = PANEL_W - RAIL_W - 11;
-        int top = y + HEADER_H + 5;
-        int bottom = y + PANEL_H - FOOTER_H - 3;
+        int top = y + HEADER_H + 6;
+        int bottom = y + PANEL_H - FOOTER_H - 6;
+        int cx = x + RAIL_W + 8;
+        int totalH = rows.size() * (ROW_H + ROW_GAP);
+        int viewH = bottom - top;
+        boolean needsBar = totalH > viewH;
+        // Always leave the gutter free so rows do not sit underneath the scrollbar.
+        int cw = (x + PANEL_W - 8) - cx - (needsBar ? SCROLLBAR_W + 4 : 0);
 
         if (rows.isEmpty()) {
-            drawText("\u00a78No modules match \"" + searchQuery + "\"", cx + 8, top + 10, COL_DIM);
+            String msg = searchQuery.isEmpty()
+                    ? "\u00a78Nothing in this category yet."
+                    : "\u00a78No modules match \"" + searchQuery + "\"";
+            drawText(msg, cx + 4, top + 12, COL_DIM);
             return;
         }
 
-        for (int i = 0; i < rows.size(); i++) {
-            int ry = top + i * (ROW_H + ROW_GAP) - scroll;
-            if (ry + ROW_H < top || ry > bottom) continue; // simple culling, no scissor needed
+        beginClip(cx, top, cx + cw + (needsBar ? SCROLLBAR_W + 4 : 0), bottom);
+        try {
+            for (int i = 0; i < rows.size(); i++) {
+                int ry = top + i * (ROW_H + ROW_GAP) - scroll;
+                if (ry + ROW_H < top || ry > bottom) continue;
 
-            Row row = rows.get(i);
-            boolean hover = inside(mouseX, mouseY, cx, ry, cw, ROW_H)
-                    && mouseY >= top && mouseY <= bottom;
+                Row row = rows.get(i);
+                boolean hover = inside(mouseX, mouseY, cx, ry, cw, ROW_H)
+                        && mouseY >= top && mouseY <= bottom;
 
-            drawRect(cx, ry, cx + cw, ry + ROW_H, hover ? COL_ROW_HOVER : COL_ROW);
-            row.render(this, cx, ry, cw);
-            if (hover) hoveredDesc = row.desc;
+                drawRect(cx, ry, cx + cw, ry + ROW_H, hover ? COL_ROW_HOVER : COL_ROW);
+                if (hover) {
+                    drawRect(cx, ry, cx + 2, ry + ROW_H, COL_ACCENT);
+                    hoveredDesc = row.desc;
+                }
+                row.render(this, cx, ry, cw);
+            }
+        } finally {
+            endClip();
         }
 
-        // scrollbar
-        int totalH = rows.size() * (ROW_H + ROW_GAP);
-        int viewH = bottom - top;
-        if (totalH > viewH) {
-            int barH = Math.max(16, (int) ((float) viewH / totalH * viewH));
+        if (needsBar) {
+            int barH = Math.max(20, (int) ((float) viewH / totalH * viewH));
             int barY = top + (int) ((float) scroll / (totalH - viewH) * (viewH - barH));
-            drawRect(x + PANEL_W - 5, top, x + PANEL_W - 3, bottom, 0x22FFFFFF);
-            drawRect(x + PANEL_W - 5, barY, x + PANEL_W - 3, barY + barH, COL_ACCENT);
+            int bx = x + PANEL_W - 8 - SCROLLBAR_W;
+            drawRect(bx, top, bx + SCROLLBAR_W, bottom, 0x18FFFFFF);
+            drawRect(bx, barY, bx + SCROLLBAR_W, barY + barH, COL_ACCENT);
         }
     }
 
@@ -501,7 +561,7 @@ public class GuiUtilityMenu extends GuiScreen {
         }
 
         // clear search by clicking the field with right mouse
-        if (inside(mouseX, mouseY, x + PANEL_W - 168, y + 6, 140, 18) && mouseButton == 1) {
+        if (inside(mouseX, mouseY, x + PANEL_W - 178, y + 6, 148, 18) && mouseButton == 1) {
             searchQuery = "";
             scroll = 0;
             rebuildRows();
@@ -521,16 +581,18 @@ public class GuiUtilityMenu extends GuiScreen {
             ry += 24;
         }
 
-        // rows
-        int cx = x + RAIL_W + 5;
-        int cw = PANEL_W - RAIL_W - 11;
-        int top = y + HEADER_H + 5;
-        int bottom = y + PANEL_H - FOOTER_H - 3;
+        // rows - geometry must mirror drawContent exactly or clicks land on the wrong row
+        int top = y + HEADER_H + 6;
+        int bottom = y + PANEL_H - FOOTER_H - 6;
+        int cx = x + RAIL_W + 8;
+        int totalH = rows.size() * (ROW_H + ROW_GAP);
+        boolean needsBar = totalH > (bottom - top);
+        int cw = (x + PANEL_W - 8) - cx - (needsBar ? SCROLLBAR_W + 4 : 0);
         if (mouseY < top || mouseY > bottom) return;
 
         for (int i = 0; i < rows.size(); i++) {
             int rowY = top + i * (ROW_H + ROW_GAP) - scroll;
-            if (rowY + ROW_H < top || rowY > bottom) continue;
+            if (rowY < top || rowY + ROW_H > bottom) continue;
             if (inside(mouseX, mouseY, cx, rowY, cw, ROW_H)) {
                 rows.get(i).click(mouseButton);
                 return;

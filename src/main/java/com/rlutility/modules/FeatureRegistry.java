@@ -182,6 +182,12 @@ public final class FeatureRegistry {
                 () -> String.format("%.2f", FeatureConfig.magnetSpeed),
                 d -> FeatureConfig.magnetSpeed = clamp(FeatureConfig.magnetSpeed + 0.05 * d, 0.05, 2.0));
 
+        f("Weapon Lock Bypass", "Beats Reskillable's level lock on weapons with a one-tick equipment "
+                + "desync: the server still has the sword's damage attribute but sees an empty hand, "
+                + "so the check is skipped. Loses enchant bonuses and durability wear.",
+                Category.COMBAT, Compat.SERVER,
+                () -> FeatureConfig.reskillableAttackBypass, v -> FeatureConfig.reskillableAttackBypass = v);
+
         f("Reskillable Auto-Buy", "Automatically spend XP levels to unlock the item you are holding.",
                 Category.TOOLS, Compat.MODDED,
                 () -> FeatureConfig.reskillableAutoBuy, v -> FeatureConfig.reskillableAutoBuy = v);

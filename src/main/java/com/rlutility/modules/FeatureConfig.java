@@ -114,6 +114,8 @@ public final class FeatureConfig {
     public static String magnetBlacklist = "minecraft:rotten_flesh,minecraft:poisonous_potato";
 
     // ----------------------------------------------------------- Reskillable
+    /** One-tick equipment desync so level-locked weapons still deal their damage. */
+    public static boolean reskillableAttackBypass = true;
     /** Automatically spend XP on Reskillable levels needed by the item you are holding. */
     public static boolean reskillableAutoBuy = false;
     /** Keep this many XP levels in reserve when auto-buying. */
