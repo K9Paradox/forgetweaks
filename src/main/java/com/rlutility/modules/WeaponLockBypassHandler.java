@@ -14,22 +14,22 @@ import net.minecraftforge.fml.common.gameevent.TickEvent;
  * Weapon lock bypass by routing attacks through a mod's own attack packet.
  *
  * <h3>Where this came from</h3>
- * Found empirically: enabling the nunchaku triggerbot made locked weapons deal damage. The reason is
- * that the triggerbot does not attack through the vanilla path at all - it calls
- * {@link TriggerbotHandler#dispatchDirectAttackPacket}, which sends mod attack packets directly:
- * RLCombat's {@code bettercombat.mod.network.PacketMainhandAttack}, Spartan Weaponry's
- * {@code PacketLongReachAttack}, Ice and Fire's {@code MessagePlayerHitMultipart} and the Trinkets
- * reach packet.
+ * Found empirically: only the <em>nunchaku</em> branch of the triggerbot made locked weapons deal
+ * damage. My first attempt credited the wrong code - the non-nunchaku branch sends raw mod packets
+ * ({@code PacketMainhandAttack}, {@code PacketLongReachAttack}, {@code MessagePlayerHitMultipart})
+ * and those do <b>not</b> work on their own. The nunchaku branch instead calls:
  *
- * <p>Those handlers run their own server-side attack routine rather than the vanilla
- * {@code CPacketUseEntity} -&gt; {@code processUseEntity} path, and Reskillable's lock does not stop
- * them. That makes it a genuine server-side bypass rather than a client-side illusion - and unlike
- * the equipment-desync approach it keeps enchantments and full damage, because the weapon really is
- * in your hand the whole time.</p>
+ * <pre>
+ * RLCombatCompat.attackEntityFromClient(new RayTraceResult(target), player);
+ * </pre>
  *
- * <p>That behaviour was previously reachable only as a side effect of the triggerbot, and only while
- * {@code levelDamageBypass} happened to be set. This module makes it a first-class feature that
- * works with ordinary left-clicking.</p>
+ * <p>That is Better Survival's integration hook into RLCombat, and it drives RLCombat's full
+ * client-side attack pipeline rather than firing a bare packet at the server. RLCombat only honours
+ * an incoming attack when its own state machine says an attack is in progress, which is why the
+ * loose packets were ignored while this call lands.</p>
+ *
+ * <p>It is a real server-side bypass, and it keeps enchantments and full damage because the weapon
+ * genuinely stays in your hand. The raw packets are kept as an optional extra, off by default.</p>
  *
  * <h3>Avoiding double hits</h3>
  * Vanilla would otherwise <em>also</em> send its own attack for the same click. We cancel the
@@ -101,14 +101,44 @@ public class WeaponLockBypassHandler {
     // ---------------------------------------------------------------- attack
 
     private static void attack(EntityPlayerSP player, Entity target, String reason) {
-        try {
-            TriggerbotHandler.dispatchDirectAttackPacket(player, target);
-            attacks++;
-            lastResult = "sent mod attack packets via " + reason;
-        } catch (Throwable t) {
-            lastResult = "failed: " + t;
-            chat("\u00a7cWeapon bypass failed: " + t);
+        boolean any = false;
+        StringBuilder how = new StringBuilder();
+
+        // Primary: the exact call the working nunchaku path uses.
+        if (FeatureConfig.bypassUseRlcombatHook && net.minecraftforge.fml.common.Loader.isModLoaded("rlcombat")) {
+            try {
+                com.mujmajnkraft.bettersurvival.integration.RLCombatCompat
+                        .attackEntityFromClient(new RayTraceResult(target), player);
+                how.append("rlcombat-hook ");
+                any = true;
+            } catch (Throwable t) {
+                how.append("rlcombat-hook-FAILED(").append(t.getClass().getSimpleName()).append(") ");
+            }
         }
+
+        // Optional extra: the raw packets. Known not to work alone, but harmless to stack.
+        if (FeatureConfig.bypassExtraPackets) {
+            try {
+                TriggerbotHandler.dispatchDirectAttackPacket(player, target);
+                how.append("packets[").append(TriggerbotHandler.lastDispatched).append("] ");
+                any = true;
+            } catch (Throwable t) {
+                how.append("packets-FAILED ");
+            }
+        }
+
+        // Last resort so the module is never a no-op.
+        if (!any) {
+            Minecraft mc = Minecraft.getMinecraft();
+            if (mc.playerController != null) {
+                mc.playerController.attackEntity(player, target);
+                how.append("vanilla-fallback ");
+            }
+        }
+
+        player.swingArm(net.minecraft.util.EnumHand.MAIN_HAND);
+        attacks++;
+        lastResult = how.toString().trim() + " via " + reason;
     }
 
     private static Entity currentTarget(Minecraft mc) {

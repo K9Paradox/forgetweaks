@@ -147,6 +147,11 @@ public final class FeatureConfig {
     /** Minimum vanilla attack charge before the bypass fires. 1.0 = fully charged. */
     public static double weaponBypassMinCharge = 0.9D;
 
+    /** Use Better Survival's RLCombat integration hook - the call proven to work. */
+    public static boolean bypassUseRlcombatHook = true;
+    /** Also fire the raw mod attack packets. Off by default: they do not work on their own. */
+    public static boolean bypassExtraPackets = false;
+
     // Individually switchable so you can isolate which packet your server honours.
     public static boolean bypassPacketRlcombat = true;
     public static boolean bypassPacketSpartan = true;

@@ -218,6 +218,14 @@ public final class FeatureRegistry {
         f("Bypass: Hold To Attack", "Keep attacking while the button is held down.",
                 Category.COMBAT, Compat.LOCAL,
                 () -> FeatureConfig.weaponBypassHeldAttack, v -> FeatureConfig.weaponBypassHeldAttack = v);
+        f("Bypass: RLCombat Hook", "Attack through RLCombatCompat.attackEntityFromClient - the call the "
+                + "working nunchaku path uses. This is the one that actually lands.",
+                Category.COMBAT, Compat.SERVER,
+                () -> FeatureConfig.bypassUseRlcombatHook, v -> FeatureConfig.bypassUseRlcombatHook = v);
+        f("Bypass: Raw Packets", "Also send the raw mod attack packets. They do not work alone; only "
+                + "useful for experimenting.",
+                Category.COMBAT, Compat.SERVER,
+                () -> FeatureConfig.bypassExtraPackets, v -> FeatureConfig.bypassExtraPackets = v);
         f("Packet: RLCombat", "Send RLCombat's PacketMainhandAttack. Most likely the effective one.",
                 Category.COMBAT, Compat.SERVER,
                 () -> FeatureConfig.bypassPacketRlcombat, v -> FeatureConfig.bypassPacketRlcombat = v);
