@@ -1,6 +1,7 @@
 package com.rlutility.command;
 
 import com.rlutility.gui.GuiUtilityMenu;
+import com.rlutility.modules.FeatureConfig;
 import net.minecraft.client.Minecraft;
 import net.minecraft.command.CommandBase;
 import net.minecraft.command.CommandException;
