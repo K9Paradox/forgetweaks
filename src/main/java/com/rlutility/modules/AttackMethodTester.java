@@ -12,7 +12,6 @@ import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.util.EnumHand;
 import net.minecraft.util.math.RayTraceResult;
 import net.minecraft.util.text.TextComponentString;
-import net.minecraftforge.fml.common.Loader;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
 
@@ -47,12 +46,13 @@ public class AttackMethodTester {
 
     private static final class Method0 {
         final String name;
-        final String requires;
+        /** Availability is a live check, not a mod id - ids proved unreliable. */
+        final java.util.function.BooleanSupplier available;
         final Attack attack;
 
-        Method0(String name, String requires, Attack attack) {
+        Method0(String name, java.util.function.BooleanSupplier available, Attack attack) {
             this.name = name;
-            this.requires = requires;
+            this.available = available;
             this.attack = attack;
         }
     }
@@ -60,13 +60,13 @@ public class AttackMethodTester {
     private static final List<Method0> METHODS = new ArrayList<>();
 
     static {
-        METHODS.add(new Method0("vanilla playerController.attackEntity", null,
+        METHODS.add(new Method0("vanilla playerController.attackEntity", () -> true,
                 (p, t) -> Minecraft.getMinecraft().playerController.attackEntity(p, t)));
 
-        METHODS.add(new Method0("RLCombatCompat.attackEntityFromClient", "rlcombat",
+        METHODS.add(new Method0("RLCombatCompat.attackEntityFromClient", ModCompat::hasRLCombatCompat,
                 (p, t) -> RLCombatCompat.attackEntityFromClient(new RayTraceResult(t), p)));
 
-        METHODS.add(new Method0("RLCombatCompat + nunchaku spin first", "rlcombat", (p, t) -> {
+        METHODS.add(new Method0("RLCombatCompat + nunchaku spin first", ModCompat::hasRLCombatCompat, (p, t) -> {
             // The working path also enabled the spin capability first; test that combination.
             try {
                 INunchakuCombo combo = p.getCapability(NunchakuComboProvider.NUNCHAKUCOMBO_CAP, null);
@@ -77,7 +77,7 @@ public class AttackMethodTester {
             RLCombatCompat.attackEntityFromClient(new RayTraceResult(t), p);
         }));
 
-        METHODS.add(new Method0("RLCombat PacketMainhandAttack", "rlcombat", (p, t) -> {
+        METHODS.add(new Method0("RLCombat PacketMainhandAttack", ModCompat::hasRLCombat, (p, t) -> {
             Class<?> ph = Class.forName("bettercombat.mod.network.PacketHandler");
             Object inst = ph.getField("instance").get(null);
             Class<?> pk = Class.forName("bettercombat.mod.network.PacketMainhandAttack");
@@ -87,17 +87,21 @@ public class AttackMethodTester {
             send.invoke(inst, msg);
         }));
 
-        METHODS.add(new Method0("Spartan PacketLongReachAttack", "spartanweaponry", (p, t) -> {
-            Class<?> ph = Class.forName("com.oblivioussp.spartanweaponry.network.PacketHandler");
+        METHODS.add(new Method0("Spartan PacketLongReachAttack",
+                () -> ModCompat.spartanPacketHandler() != null && ModCompat.spartanLongReachPacket() != null,
+                (p, t) -> {
+            // The hardcoded class name threw ClassNotFoundException; resolve it from candidates.
+            Class<?> ph = ModCompat.spartanPacketHandler();
             Object inst = ph.getField("instance").get(null);
-            Class<?> pk = Class.forName("com.oblivioussp.spartanweaponry.network.PacketLongReachAttack");
+            Class<?> pk = ModCompat.spartanLongReachPacket();
             Object msg = pk.getConstructor(int.class, float.class).newInstance(t.getEntityId(), 0.0F);
             Method send = inst.getClass().getMethod("sendToServer",
                     net.minecraftforge.fml.common.network.simpleimpl.IMessage.class);
             send.invoke(inst, msg);
         }));
 
-        METHODS.add(new Method0("Ice and Fire MessagePlayerHitMultipart", "iceandfire", (p, t) -> {
+        METHODS.add(new Method0("Ice and Fire MessagePlayerHitMultipart",
+                () -> ModCompat.classExists("com.github.alexthe666.iceandfire.IceAndFire"), (p, t) -> {
             Class<?> iaf = Class.forName("com.github.alexthe666.iceandfire.IceAndFire");
             Object wrapper = iaf.getField("NETWORK_WRAPPER").get(null);
             Class<?> pk = Class.forName("com.github.alexthe666.iceandfire.message.MessagePlayerHitMultipart");
@@ -107,7 +111,7 @@ public class AttackMethodTester {
             send.invoke(wrapper, msg);
         }));
 
-        METHODS.add(new Method0("raw CPacketUseEntity", null, (p, t) -> {
+        METHODS.add(new Method0("raw CPacketUseEntity", () -> true, (p, t) -> {
             Minecraft mc = Minecraft.getMinecraft();
             if (mc.getConnection() != null) {
                 mc.getConnection().sendPacket(
@@ -124,6 +128,7 @@ public class AttackMethodTester {
     private static int timer = 0;
     private static Entity target = null;
     private static float healthBefore = 0;
+    private static boolean scored = true;
     private static String heldAtStart = "";
     private static final List<String> results = new ArrayList<>();
 
@@ -157,6 +162,7 @@ public class AttackMethodTester {
         active = true;
         index = -1;
         timer = 0;
+        scored = true;
 
         chat("\u00a76\u00a7lAttack method test starting");
         chat("\u00a77Target: \u00a7f" + target.getName() + "\u00a77  Weapon: \u00a7f" + heldAtStart);
@@ -192,8 +198,12 @@ public class AttackMethodTester {
             return;
         }
 
-        // Score the method that just ran.
-        if (index >= 0 && index < METHODS.size()) {
+        // Score the method that just ran. 'scored' guards against double-counting a method that
+        // was skipped or threw - previously those were recorded once at dispatch and then AGAIN
+        // here as "no damage", which is why the last report listed seven methods eleven times and
+        // showed untested methods as failures.
+        if (index >= 0 && index < METHODS.size() && !scored) {
+            scored = true;
             float after = ((EntityLivingBase) target).getHealth();
             float delta = healthBefore - after;
             Method0 m = METHODS.get(index);
@@ -209,9 +219,17 @@ public class AttackMethodTester {
             return;
         }
 
+        scored = false;
         Method0 method = METHODS.get(index);
-        if (method.requires != null && !Loader.isModLoaded(method.requires)) {
-            results.add("\u00a78- skipped (" + method.requires + " absent)  " + method.name);
+        boolean ok;
+        try {
+            ok = method.available.getAsBoolean();
+        } catch (Throwable t) {
+            ok = false;
+        }
+        if (!ok) {
+            results.add("\u00a78- unavailable (class not found)  " + method.name);
+            scored = true;
             timer = 1;
             return;
         }
@@ -222,6 +240,7 @@ public class AttackMethodTester {
             method.attack.run(player, target);
         } catch (Throwable t) {
             results.add("\u00a78- threw " + t.getClass().getSimpleName() + "  " + method.name);
+            scored = true;
             timer = 1;
             return;
         }
@@ -233,7 +252,14 @@ public class AttackMethodTester {
         chat("\u00a77Weapon: \u00a7f" + heldAtStart);
         for (String line : results) chat("  " + line);
         boolean any = false;
-        for (String line : results) if (line.contains("\u2713")) any = true;
+        int untested = 0;
+        for (String line : results) {
+            if (line.contains("\u2713")) any = true;
+            if (line.contains("unavailable") || line.contains("threw")) untested++;
+        }
+        if (untested > 0) {
+            chat("\u00a7e" + untested + " method(s) could not run - those are UNTESTED, not failures.");
+        }
         if (any) {
             chat("\u00a7aAt least one method works - I will make that the default path.");
         } else {

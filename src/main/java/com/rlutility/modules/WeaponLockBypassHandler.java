@@ -8,7 +8,6 @@ import net.minecraft.util.math.RayTraceResult;
 import net.minecraft.util.text.TextComponentString;
 import net.minecraft.util.EnumHand;
 import net.minecraftforge.client.event.MouseEvent;
-import net.minecraftforge.fml.common.Loader;
 import net.minecraftforge.fml.common.eventhandler.EventPriority;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
@@ -108,7 +107,7 @@ public class WeaponLockBypassHandler {
         StringBuilder how = new StringBuilder();
 
         // Primary: the exact call the working nunchaku path uses.
-        if (FeatureConfig.bypassUseRlcombatHook && Loader.isModLoaded("rlcombat")) {
+        if (FeatureConfig.bypassUseRlcombatHook && ModCompat.hasRLCombatCompat()) {
             try {
                 RLCombatCompat.attackEntityFromClient(new RayTraceResult(target), player);
                 how.append("rlcombat-hook ");

@@ -28,7 +28,7 @@ public class CommandRLUtility extends CommandBase {
 
     @Override
     public String getUsage(ICommandSender sender) {
-        return "/rlu | diag | lockseed <seed> | lockcrack | lockdiag | lockadd | attacktest | level <n> | tree <t> <n> | safe | max | class <t> | revert | xray [block|here] | unlock | buy <skill> [n]";
+        return "/rlu | diag | lockseed <seed> | lockcrack | lockdiag | lockadd | attacktest | mods | locksolve on|off | level <n> | tree <t> <n> | safe | max | class <t> | revert | xray [block|here] | unlock | buy <skill> [n]";
     }
 
     @Override
@@ -132,6 +132,26 @@ public class CommandRLUtility extends CommandBase {
                         com.rlutility.modules.XRayHandler.forceRescan();
                         say(mc, "\u00a7fXRay " + (FeatureConfig.xrayEnabled ? "\u00a7aENABLED" : "\u00a7cDISABLED"));
                     }
+                });
+                return;
+            } else if (sub.equals("mods")) {
+                final String filter = args.length > 1 ? args[1] : "";
+                mc.addScheduledTask(() -> {
+                    java.util.List<String> mods = com.rlutility.modules.ModCompat.loadedMods(filter);
+                    say(mc, "\u00a76" + mods.size() + " loaded mod id(s)"
+                            + (filter.isEmpty() ? "" : " matching '" + filter + "'") + ":");
+                    for (String m : mods) say(mc, "  \u00a7f" + m);
+                });
+                return;
+            } else if (sub.equals("locksolve")) {
+                final String arg = args.length > 1 ? args[1] : "toggle";
+                mc.addScheduledTask(() -> {
+                    if (arg.equalsIgnoreCase("on")) FeatureConfig.locksAutoSolve = true;
+                    else if (arg.equalsIgnoreCase("off")) FeatureConfig.locksAutoSolve = false;
+                    else FeatureConfig.locksAutoSolve = !FeatureConfig.locksAutoSolve;
+                    FeatureConfig.saveConfig();
+                    say(mc, "\u00a7fLock Auto-Solve " + (FeatureConfig.locksAutoSolve
+                            ? "\u00a7aENABLED" : "\u00a7cDISABLED"));
                 });
                 return;
             } else if (sub.equals("attacktest")) {

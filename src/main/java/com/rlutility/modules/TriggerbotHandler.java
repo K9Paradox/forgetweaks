@@ -43,7 +43,7 @@ public class TriggerbotHandler {
                 if (target != null && !target.isDead) {
                     if (player.getCooledAttackStrength(0.5F) >= 1.0F) {
                         RayTraceResult hitResult = new RayTraceResult(target);
-                        if (Loader.isModLoaded("rlcombat")) {
+                        if (ModCompat.hasRLCombatCompat()) {
                             RLCombatCompat.attackEntityFromClient(hitResult, player);
                         } else {
                             mc.playerController.attackEntity(player, target);
@@ -85,7 +85,7 @@ public class TriggerbotHandler {
                     ensureSpinning(player, true);
                     if (player.getCooledAttackStrength(0.5F) >= 1.0F) {
                         RayTraceResult hitResult = new RayTraceResult(target);
-                        if (Loader.isModLoaded("rlcombat")) {
+                        if (ModCompat.hasRLCombatCompat()) {
                             RLCombatCompat.attackEntityFromClient(hitResult, player);
                         } else {
                             mc.playerController.attackEntity(player, target);
@@ -174,11 +174,11 @@ public class TriggerbotHandler {
         }
 
         // 2. Spartan Weaponry Long Reach Attack Packet
-        if (FeatureConfig.bypassPacketSpartan && Loader.isModLoaded("spartanweaponry")) {
+        if (FeatureConfig.bypassPacketSpartan && ModCompat.spartanLongReachPacket() != null) {
             try {
-                Class<?> spartanNet = Class.forName("com.oblivioussp.spartanweaponry.network.PacketHandler");
+                Class<?> spartanNet = ModCompat.spartanPacketHandler();
                 Object instance = spartanNet.getField("instance").get(null);
-                Class<?> packetClass = Class.forName("com.oblivioussp.spartanweaponry.network.PacketLongReachAttack");
+                Class<?> packetClass = ModCompat.spartanLongReachPacket();
                 Object packet = packetClass.getConstructor(int.class, float.class).newInstance(target.getEntityId(), 0.0F);
                 Method sendToServer = instance.getClass().getMethod("sendToServer", net.minecraftforge.fml.common.network.simpleimpl.IMessage.class);
                 sendToServer.invoke(instance, packet);
@@ -198,7 +198,7 @@ public class TriggerbotHandler {
 
         // 4. Direct RLCombat PacketMainhandAttack - the most likely one to be doing the work,
         //    since it runs RLCombat's own server-side attack routine.
-        if (FeatureConfig.bypassPacketRlcombat && Loader.isModLoaded("rlcombat")) {
+        if (FeatureConfig.bypassPacketRlcombat && ModCompat.hasRLCombat()) {
             try {
                 Class<?> packetHandlerClass = Class.forName("bettercombat.mod.network.PacketHandler");
                 Object instance = packetHandlerClass.getField("instance").get(null);
