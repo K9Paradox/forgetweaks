@@ -21,3 +21,4 @@ prism_jars.txt
 *.tmp
 .DS_Store
 Thumbs.db
+libs/
