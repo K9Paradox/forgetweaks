@@ -65,6 +65,7 @@ Commands: `/rlu`, `/rlmenu`, `/rlgui`, `/rlu level <n>`, `/rlu tree <mining|craf
   Includes a **free class change** (`levelupclasses` only charges `reclassCost` when the *client*
   asks it to, so we send `reclass = false`) and a post-send verification that tells you whether the
   server actually accepted.
+- **Item magnet** - configurable radius, pull speed, whitelist/blacklist and an "only my drops" mode.
 - **Auto Lockpick** `MOD` — audio-pitch + minimax-entropy solver for `melonslise.locks` 3.0.0.
   Handles 11-pin master locks, replays known prefixes at one pin per tick, and deduces the final pin
   with zero guesses.
@@ -127,6 +128,77 @@ gradle build -x test -PrlcraftMods="/path/to/RLCraft/minecraft/mods"
 The RLCraft mod jars are compile-time only dependencies (this mod links against Level Up! 2,
 Reskillable, Locks, First Aid and others). You can also drop them in `./libs` instead of passing the
 flag. `gradle checkRlcraftDeps` lists which ones are missing.
+
+## The Reskillable sword problem
+
+Mining tools work but swords do nothing, with a red warning on screen. That warning is the proof:
+`LevelLockHandler.tellPlayer` is guarded by `if (player instanceof EntityPlayerMP)` and sends you a
+`MessageLockedItem` packet **from the server**. Weapons are enforced through `LivingAttackEvent`
+server-side, against the server's own copy of your skill levels.
+
+So the old "Reskillable Bypass" could never work. It faked `info.setLevel(32)` in your local
+`PlayerData` and un-cancelled events at `LOWEST` priority - both client-only. Worse, faking the level
+locally made your client think the swing was legal, so it kept sending attacks the server threw away.
+That is exactly the "swing connects, nothing happens" symptom. Mining looked fine only because block
+breaking is heavily client-predicted.
+
+**The real fix** is to raise the levels on the server with Reskillable's own `MessageLevelUp` packet.
+The server validates it:
+
+```java
+if (!info.isCapped()) {
+    int cost = info.getLevelUpCost();
+    if (player.experienceLevel >= cost || player.isCreative()) { ...levelUp()... }
+}
+```
+
+There is no free path - the cost is checked where we cannot reach it. But the packet carries nothing
+but a skill name, so we can drive it as fast as we like and buy exactly what the held item needs:
+
+- `/rlu unlock` - buys the levels the item in your hand is missing
+- `/rlu buy <skill> [levels]` - buys levels directly
+- **Reskillable Auto-Buy** (Tools tab) - does it automatically when you hold a locked item
+- **XP Reserve** - never spends below N levels
+
+This costs real XP, but it is permanent and server-side: the sword actually works afterwards.
+
+## Desync dupe
+
+`/dupe` runs a guided three-step flow. It exploits the same `saveNBTData` NPE described below:
+injecting a skill key that no skill is registered under makes `PlayerExtension.saveNBTData` throw
+while serialising your capability, and vanilla's `SaveHandler.writePlayerData` catches `Exception`
+and merely logs "Failed to save player data". Your player file freezes; chunk data (chests) keeps
+saving.
+
+The ordering matters, which is why the command insists on it:
+
+1. `/dupe` tells you to relog. **This is the point of the step** - the rollback target is your last
+   *successful* save, not the moment you armed. Relogging forces a clean one.
+2. On rejoin it arms automatically, injecting only the poison key and leaving all 26 real skill
+   levels untouched (a much smaller footprint than rewriting them all).
+3. Bank your items in a chest, disconnect, rejoin.
+
+There is no in-session disarm, and `/dupe cancel` says so honestly: the skill packet only ever
+*writes* keys, never deletes them, and that key is what blocks the save. Rejoining is the cure,
+because the corrupt map was never written to disk.
+
+## XRay and ESP
+
+XRay highlights blocks through terrain rather than hiding terrain - the visible result people
+actually want, with no coremod, no mixin and no chunk re-mesh. It walks `ExtendedBlockStorage`
+sections directly and skips empty ones, which is what makes a 28-block radius affordable; scans are
+throttled and re-run when you cross a chunk border, and results are capped at 4000 so a careless
+`minecraft:stone` entry cannot lock the game.
+
+Every list is editable in game (Tools tab) with the same picker:
+
+- **Add looked-at** - grabs whatever your crosshair is on, block or mob
+- **Browse all** - searchable list of every registered id, click to toggle
+- **Type an id** - including wildcards, so `iceandfire:*` covers a whole mod
+
+The same editor drives ESP entities, ESP blocks, and the item magnet's whitelist/blacklist. ESP also
+gained *Modded Mob* (anything not `minecraft:`) and *All Containers* (anything with an inventory)
+toggles.
 
 ## Level Up! 2 exploit — correctness notes
 

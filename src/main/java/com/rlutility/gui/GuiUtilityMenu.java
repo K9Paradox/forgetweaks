@@ -5,7 +5,11 @@ import com.rlutility.modules.AutoReforgerHandler;
 import com.rlutility.modules.Feature;
 import com.rlutility.modules.FeatureConfig;
 import com.rlutility.modules.FeatureRegistry;
+import com.rlutility.modules.DupeExploitHandler;
+import com.rlutility.modules.EspRenderHelper;
 import com.rlutility.modules.LevelUpExploitHandler;
+import com.rlutility.modules.ReskillableHelper;
+import com.rlutility.modules.XRayHandler;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.util.ChatAllowedCharacters;
@@ -180,6 +184,66 @@ public class GuiUtilityMenu extends GuiScreen {
 
     private void buildToolsRows() {
         for (Feature f : FeatureRegistry.byCategory(Feature.Category.TOOLS)) rows.add(new ToggleRow(f));
+
+        rows.add(new ActionRow("Edit XRay Blocks",
+                "Pick which blocks XRay highlights. Add the block you are looking at, browse the full "
+                        + "registry, or type an id. Wildcards like \"iceandfire:*\" work.",
+                XRayHandler.targetCount() + " blocks", () -> mc.displayGuiScreen(new GuiTargetListEditor(
+                        this, "XRay Blocks",
+                        () -> FeatureConfig.xrayBlocks,
+                        v -> { FeatureConfig.xrayBlocks = v; XRayHandler.forceRescan(); },
+                        GuiUtilityMenu::allBlockIds,
+                        XRayHandler::lookingAtBlockId))));
+
+        rows.add(new ActionRow("Edit ESP Entities",
+                "Extra mobs to outline, on top of the category toggles. Look at a creature and add it.",
+                EspRenderHelper.customEntities().size() + " entities", () -> mc.displayGuiScreen(new GuiTargetListEditor(
+                        this, "ESP Entities",
+                        () -> FeatureConfig.espCustomEntities,
+                        v -> FeatureConfig.espCustomEntities = v,
+                        GuiUtilityMenu::allEntityIds,
+                        EspRenderHelper::lookingAtId))));
+
+        rows.add(new ActionRow("Edit ESP Blocks",
+                "Extra blocks and containers to outline, such as waystones or modded chests.",
+                EspRenderHelper.customBlocks().size() + " blocks", () -> mc.displayGuiScreen(new GuiTargetListEditor(
+                        this, "ESP Blocks",
+                        () -> FeatureConfig.espCustomBlocks,
+                        v -> FeatureConfig.espCustomBlocks = v,
+                        GuiUtilityMenu::allBlockIds,
+                        XRayHandler::lookingAtBlockId))));
+
+        rows.add(new ActionRow("Magnet Whitelist",
+                "When non-empty, only these items are pulled. Leave empty to pull everything.",
+                "edit", () -> mc.displayGuiScreen(new GuiTargetListEditor(
+                        this, "Magnet Whitelist",
+                        () -> FeatureConfig.magnetWhitelist,
+                        v -> FeatureConfig.magnetWhitelist = v,
+                        GuiUtilityMenu::allItemIds, () -> null))));
+
+        rows.add(new ActionRow("Magnet Blacklist",
+                "Items the magnet always ignores, so your inventory stops filling with junk.",
+                "edit", () -> mc.displayGuiScreen(new GuiTargetListEditor(
+                        this, "Magnet Blacklist",
+                        () -> FeatureConfig.magnetBlacklist,
+                        v -> FeatureConfig.magnetBlacklist = v,
+                        GuiUtilityMenu::allItemIds, () -> null))));
+
+        if (ReskillableHelper.isModLoaded()) {
+            rows.add(new ActionRow("Unlock Held Item",
+                    "Buys exactly the Reskillable levels the item in your hand is missing. This spends "
+                            + "real XP because the server validates every level-up - there is no free path.",
+                    "buy", () -> announceResult(ReskillableHelper.unlockHeldItem())));
+        }
+
+        if (DupeExploitHandler.isModLoaded()) {
+            rows.add(new ActionRow("Desync Dupe",
+                    "Guided save-abort dupe. Relog for a clean rollback point, arm, bank your items, relog.",
+                    DupeExploitHandler.isArmed() ? "ARMED" : "start", () -> {
+                        DupeExploitHandler.begin();
+                        mc.displayGuiScreen(null);
+                    }));
+        }
 
         byte spec = LevelUpExploitHandler.currentSpecialization();
         rows.add(new ActionRow("Level Up! 2 Specialization",
@@ -379,6 +443,39 @@ public class GuiUtilityMenu extends GuiScreen {
             }
             drawText(line, x + 10, fy + i * 10, COL_DIM);
         }
+    }
+
+    private void announceResult(String message) {
+        if (mc.player != null) {
+            mc.player.sendMessage(new net.minecraft.util.text.TextComponentString("\u00a76[RLUtility] \u00a7r" + message));
+        }
+    }
+
+    private static List<String> allBlockIds() {
+        List<String> out = new ArrayList<>();
+        for (net.minecraft.util.ResourceLocation key : net.minecraft.block.Block.REGISTRY.getKeys()) {
+            out.add(key.toString());
+        }
+        java.util.Collections.sort(out);
+        return out;
+    }
+
+    private static List<String> allItemIds() {
+        List<String> out = new ArrayList<>();
+        for (net.minecraft.util.ResourceLocation key : net.minecraft.item.Item.REGISTRY.getKeys()) {
+            out.add(key.toString());
+        }
+        java.util.Collections.sort(out);
+        return out;
+    }
+
+    private static List<String> allEntityIds() {
+        List<String> out = new ArrayList<>();
+        for (net.minecraft.util.ResourceLocation key : net.minecraft.entity.EntityList.getEntityNameList()) {
+            out.add(key.toString());
+        }
+        java.util.Collections.sort(out);
+        return out;
     }
 
     void drawText(String text, int x, int y, int color) {

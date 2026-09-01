@@ -79,6 +79,50 @@ public final class FeatureConfig {
     public static boolean espTracers = false;
     public static int espRange = 64;
 
+    /** Highlight every mob that is not from vanilla Minecraft. */
+    public static boolean espModdedMobs = false;
+    /** Highlight anything with an inventory, not just vanilla chests. */
+    public static boolean espAllContainers = false;
+    /** Extra entity ids to highlight, comma separated. Supports "iceandfire:*" prefix matching. */
+    public static String espCustomEntities = "iceandfire:dragon_fire,iceandfire:dragon_ice,iceandfire:cyclops,iceandfire:hydra";
+    /** Extra block ids to highlight as containers/points of interest. */
+    public static String espCustomBlocks = "waystones:waystone,minecraft:end_portal_frame,minecraft:beacon";
+
+    // ---------------------------------------------------------------- XRay
+    public static boolean xrayEnabled = false;
+    /** Blocks XRay looks for. Editable in game; supports "modid:*" prefix entries. */
+    public static String xrayBlocks = "minecraft:diamond_ore,minecraft:emerald_ore,minecraft:gold_ore,"
+            + "minecraft:iron_ore,minecraft:coal_ore,minecraft:lapis_ore,minecraft:redstone_ore,"
+            + "minecraft:lit_redstone_ore,minecraft:quartz_ore,minecraft:mob_spawner,minecraft:chest,"
+            + "minecraft:trapped_chest,minecraft:end_portal_frame,iceandfire:silver_ore,"
+            + "iceandfire:sapphire_ore,iceandfire:copper_ore,iceandfire:gold_pile,iceandfire:silver_pile,"
+            + "iceandfire:copper_pile,iceandfire:chunk_of_amythest";
+    /** Scan radius in blocks. Cost grows with the cube of this, so keep it modest. */
+    public static int xrayRange = 28;
+    /** Ticks between rescans. Lower = more responsive, more CPU. */
+    public static int xrayRescanTicks = 30;
+    public static boolean xrayTracers = false;
+
+    // ---------------------------------------------------------- Item magnet
+    public static double magnetRadius = 6.0D;
+    public static double magnetSpeed = 0.4D;
+    /** Only pull items that are already flagged as yours (thrown/dropped by you). */
+    public static boolean magnetOnlyMine = false;
+    /** When set, only these item ids are pulled. Empty = pull everything. */
+    public static String magnetWhitelist = "";
+    /** Never pull these item ids. Applied after the whitelist. */
+    public static String magnetBlacklist = "minecraft:rotten_flesh,minecraft:poisonous_potato";
+
+    // ----------------------------------------------------------- Reskillable
+    /** Automatically spend XP on Reskillable levels needed by the item you are holding. */
+    public static boolean reskillableAutoBuy = false;
+    /** Keep this many XP levels in reserve when auto-buying. */
+    public static int reskillableXpReserve = 0;
+
+    // ------------------------------------------------------------ Dupe/desync
+    /** Set by /dupe between the "relog for a clean rollback point" step and re-joining. */
+    public static boolean dupePendingArm = false;
+
     // ------------------------------------------------------------------- HUD
     public static boolean hudEnabled = true;
     public static boolean hudWatermark = true;

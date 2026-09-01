@@ -166,15 +166,29 @@ public final class FeatureRegistry {
         f("Debuff Neutralizer", "Strips screen-shake and nuisance debuffs from your client render.",
                 Category.EXPLOITS, Compat.LOCAL,
                 () -> FeatureConfig.clientDebuffNeutralizer, v -> FeatureConfig.clientDebuffNeutralizer = v);
-        f("Reskillable Bypass", "Un-cancels Reskillable's client-side lockouts so nothing is greyed out.",
-                Category.EXPLOITS, Compat.LOCAL,
-                () -> FeatureConfig.reskillableBypass, v -> FeatureConfig.reskillableBypass = v);
 
         s("Loot Delay", "Ticks between each shift-click. Lower is faster but noisier.", Category.EXPLOITS,
                 () -> FeatureConfig.autoLootDelay + "t",
                 d -> FeatureConfig.autoLootDelay = (int) clamp(FeatureConfig.autoLootDelay + d, 0, 10));
 
         // -------------------------------------------------------------- TOOLS
+        f("Magnet: Only My Drops", "Ignore items that another player dropped.",
+                Category.TOOLS, Compat.LOCAL,
+                () -> FeatureConfig.magnetOnlyMine, v -> FeatureConfig.magnetOnlyMine = v);
+        s("Magnet Radius", "How far the item vacuum reaches.", Category.TOOLS,
+                () -> String.format("%.1fm", FeatureConfig.magnetRadius),
+                d -> FeatureConfig.magnetRadius = clamp(FeatureConfig.magnetRadius + 0.5 * d, 1.0, 32.0));
+        s("Magnet Speed", "How hard items are pulled toward you.", Category.TOOLS,
+                () -> String.format("%.2f", FeatureConfig.magnetSpeed),
+                d -> FeatureConfig.magnetSpeed = clamp(FeatureConfig.magnetSpeed + 0.05 * d, 0.05, 2.0));
+
+        f("Reskillable Auto-Buy", "Automatically spend XP levels to unlock the item you are holding.",
+                Category.TOOLS, Compat.MODDED,
+                () -> FeatureConfig.reskillableAutoBuy, v -> FeatureConfig.reskillableAutoBuy = v);
+        s("XP Reserve", "Never spend below this many XP levels when auto-buying.", Category.TOOLS,
+                () -> FeatureConfig.reskillableXpReserve + " lv",
+                d -> FeatureConfig.reskillableXpReserve = (int) clamp(FeatureConfig.reskillableXpReserve + d, 0, 100));
+
         f("LU2: Preserve Class", "Keep exactly one Level Up! class marker set. Off = all three XP bonuses at once.",
                 Category.TOOLS, Compat.MODDED,
                 () -> FeatureConfig.levelUpPreserveClass, v -> FeatureConfig.levelUpPreserveClass = v);
@@ -208,9 +222,32 @@ public final class FeatureRegistry {
                 Category.VISUALS, Compat.LOCAL,
                 () -> FeatureConfig.espTracers, v -> FeatureConfig.espTracers = v);
 
+        f("Modded Mob ESP", "Outlines every living entity that is not from vanilla Minecraft.",
+                Category.VISUALS, Compat.LOCAL,
+                () -> FeatureConfig.espModdedMobs, v -> FeatureConfig.espModdedMobs = v);
+        f("All Containers ESP", "Outlines anything with an inventory, including modded chests and barrels.",
+                Category.VISUALS, Compat.LOCAL,
+                () -> FeatureConfig.espAllContainers, v -> FeatureConfig.espAllContainers = v);
+
         s("ESP Range", "Maximum draw distance in blocks. Lower = better FPS.", Category.VISUALS,
                 () -> FeatureConfig.espRange + "m",
                 d -> FeatureConfig.espRange = (int) clamp(FeatureConfig.espRange + 8 * d, 16, 192));
+
+        // ----------------------------------------------------------------- XRay
+        f("XRay", "Highlights the blocks on your list through terrain. Edit the list in the Tools tab.",
+                Category.VISUALS, Compat.LOCAL,
+                () -> FeatureConfig.xrayEnabled, v -> FeatureConfig.xrayEnabled = v);
+        f("XRay Tracers", "Draws a line from your crosshair to every XRay hit.",
+                Category.VISUALS, Compat.LOCAL,
+                () -> FeatureConfig.xrayTracers, v -> FeatureConfig.xrayTracers = v);
+        s("XRay Range", "Scan radius. Cost grows with the cube of this - 28 is a good balance.",
+                Category.VISUALS,
+                () -> FeatureConfig.xrayRange + "m",
+                d -> FeatureConfig.xrayRange = (int) clamp(FeatureConfig.xrayRange + 4 * d, 8, 64));
+        s("XRay Rescan", "Ticks between scans. Lower reacts faster but costs more CPU.",
+                Category.VISUALS,
+                () -> FeatureConfig.xrayRescanTicks + "t",
+                d -> FeatureConfig.xrayRescanTicks = (int) clamp(FeatureConfig.xrayRescanTicks + 5 * d, 5, 120));
 
         // ---------------------------------------------------------------- HUD
         f("HUD", "Master switch for the in-game overlay.",

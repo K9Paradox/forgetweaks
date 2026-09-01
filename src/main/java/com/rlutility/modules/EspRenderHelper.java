@@ -7,11 +7,13 @@ import net.minecraft.client.renderer.RenderGlobal;
 import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityList;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.boss.EntityDragon;
 import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.monster.IMob;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.inventory.IInventory;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.tileentity.TileEntityChest;
 import net.minecraft.tileentity.TileEntityEnderChest;
@@ -44,6 +46,32 @@ public class EspRenderHelper {
     private static final float[] COLOR_HOSTILE  = {1.00F, 0.35F, 0.35F};
     private static final float[] COLOR_PLAYER   = {0.30F, 0.70F, 1.00F};
     private static final float[] COLOR_ITEM     = {0.60F, 1.00F, 0.60F};
+    private static final float[] COLOR_CUSTOM   = {1.00F, 0.45F, 0.90F};
+    private static final float[] COLOR_MODDED   = {0.65F, 0.45F, 1.00F};
+
+    private static final TargetList CUSTOM_ENTITIES = new TargetList("ESP entities");
+    private static final TargetList CUSTOM_BLOCKS = new TargetList("ESP blocks");
+
+    /** Registry id of an entity, e.g. "iceandfire:dragon_fire". Null for unregistered entities. */
+    public static String idOf(Entity entity) {
+        try {
+            net.minecraft.util.ResourceLocation key = EntityList.getKey(entity);
+            return key == null ? null : key.toString();
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    /** Registry id of the block backing a tile entity. */
+    public static String idOf(TileEntity te) {
+        try {
+            net.minecraft.block.Block block = te.getBlockType();
+            if (block == null || block.getRegistryName() == null) return null;
+            return block.getRegistryName().toString();
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
 
     @SubscribeEvent
     public void onRenderWorldLast(RenderWorldLastEvent event) {
@@ -73,7 +101,8 @@ public class EspRenderHelper {
 
         try {
             // ---------------------------------------------------------- blocks
-            if (FeatureConfig.espChests || FeatureConfig.espSpawners || FeatureConfig.espWaystones) {
+            if (FeatureConfig.espChests || FeatureConfig.espSpawners || FeatureConfig.espWaystones
+                    || FeatureConfig.espAllContainers || !CUSTOM_BLOCKS.isEmpty(FeatureConfig.espCustomBlocks)) {
                 List<TileEntity> tiles = new ArrayList<>(mc.world.loadedTileEntityList);
                 for (TileEntity te : tiles) {
                     if (te == null || te.isInvalid()) continue;
@@ -98,7 +127,8 @@ public class EspRenderHelper {
 
             // -------------------------------------------------------- entities
             if (FeatureConfig.espDragons || FeatureConfig.espHostiles
-                    || FeatureConfig.espPlayers || FeatureConfig.espItems) {
+                    || FeatureConfig.espPlayers || FeatureConfig.espItems
+                    || FeatureConfig.espModdedMobs || !CUSTOM_ENTITIES.isEmpty(FeatureConfig.espCustomEntities)) {
                 List<Entity> entities = new ArrayList<>(mc.world.loadedEntityList);
                 for (Entity entity : entities) {
                     if (entity == null || entity == mc.player || entity.isDead) continue;
@@ -169,14 +199,30 @@ public class EspRenderHelper {
         }
         if (FeatureConfig.espSpawners && te instanceof TileEntityMobSpawner) return COLOR_SPAWNER;
         if (FeatureConfig.espWaystones && te.getClass().getName().toLowerCase().contains("waystone")) return COLOR_WAYSTONE;
+
+        // Anything with an inventory - catches modded chests, barrels, backpacks on stands, etc.
+        if (FeatureConfig.espAllContainers && te instanceof IInventory && ((IInventory) te).getSizeInventory() > 0) {
+            return COLOR_CHEST;
+        }
+        if (CUSTOM_BLOCKS.contains(FeatureConfig.espCustomBlocks, idOf(te))) return COLOR_CUSTOM;
         return null;
     }
 
     private static float[] colorFor(Entity entity) {
+        String id = idOf(entity);
+
+        // The explicit list wins, so you can pin one specific mob even with the broad toggles off.
+        if (CUSTOM_ENTITIES.contains(FeatureConfig.espCustomEntities, id)) return COLOR_CUSTOM;
+
         if (FeatureConfig.espDragons && isBoss(entity)) return COLOR_BOSS;
         if (FeatureConfig.espPlayers && entity instanceof EntityPlayer) return COLOR_PLAYER;
         if (FeatureConfig.espHostiles && (entity instanceof IMob) && entity instanceof EntityLivingBase) return COLOR_HOSTILE;
         if (FeatureConfig.espItems && entity instanceof EntityItem) return COLOR_ITEM;
+
+        if (FeatureConfig.espModdedMobs && entity instanceof EntityLivingBase
+                && id != null && !id.startsWith("minecraft:")) {
+            return COLOR_MODDED;
+        }
         return null;
     }
 
@@ -191,6 +237,43 @@ public class EspRenderHelper {
     private static boolean anyEspEnabled() {
         return FeatureConfig.espChests || FeatureConfig.espSpawners || FeatureConfig.espWaystones
                 || FeatureConfig.espDragons || FeatureConfig.espHostiles || FeatureConfig.espPlayers
-                || FeatureConfig.espItems;
+                || FeatureConfig.espItems || FeatureConfig.espModdedMobs || FeatureConfig.espAllContainers
+                || !CUSTOM_ENTITIES.isEmpty(FeatureConfig.espCustomEntities)
+                || !CUSTOM_BLOCKS.isEmpty(FeatureConfig.espCustomBlocks);
+    }
+
+    // ------------------------------------------------------------ list editing
+
+    public static java.util.List<String> customEntities() {
+        return CUSTOM_ENTITIES.entries(FeatureConfig.espCustomEntities);
+    }
+
+    public static java.util.List<String> customBlocks() {
+        return CUSTOM_BLOCKS.entries(FeatureConfig.espCustomBlocks);
+    }
+
+    public static void toggleEntity(String id) {
+        FeatureConfig.espCustomEntities = TargetList.toggle(FeatureConfig.espCustomEntities, id);
+        FeatureConfig.saveConfig();
+    }
+
+    public static void toggleBlock(String id) {
+        FeatureConfig.espCustomBlocks = TargetList.toggle(FeatureConfig.espCustomBlocks, id);
+        FeatureConfig.saveConfig();
+    }
+
+    /** Registry id of whatever the crosshair is on - entity first, then block. */
+    public static String lookingAtId() {
+        try {
+            Minecraft mc = Minecraft.getMinecraft();
+            net.minecraft.util.math.RayTraceResult hit = mc.objectMouseOver;
+            if (hit == null) return null;
+            if (hit.entityHit != null) return idOf(hit.entityHit);
+            if (hit.typeOfHit == net.minecraft.util.math.RayTraceResult.Type.BLOCK && hit.getBlockPos() != null) {
+                net.minecraft.block.Block block = mc.world.getBlockState(hit.getBlockPos()).getBlock();
+                return block.getRegistryName() == null ? null : block.getRegistryName().toString();
+            }
+        } catch (Throwable ignored) {}
+        return null;
     }
 }

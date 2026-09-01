@@ -4,121 +4,300 @@ import codersafterdark.reskillable.api.ReskillableRegistries;
 import codersafterdark.reskillable.api.data.PlayerData;
 import codersafterdark.reskillable.api.data.PlayerDataHandler;
 import codersafterdark.reskillable.api.data.PlayerSkillInfo;
-import codersafterdark.reskillable.api.requirement.RequirementCache;
+import codersafterdark.reskillable.api.data.RequirementHolder;
 import codersafterdark.reskillable.api.skill.Skill;
-import codersafterdark.reskillable.api.unlockable.Unlockable;
-import codersafterdark.reskillable.base.ToolTipHandler;
+import codersafterdark.reskillable.base.LevelLockHandler;
+import codersafterdark.reskillable.network.MessageLevelUp;
+import codersafterdark.reskillable.network.PacketHandler;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityPlayerSP;
-import net.minecraftforge.event.entity.living.LivingAttackEvent;
-import net.minecraftforge.event.entity.player.PlayerInteractEvent;
-import net.minecraftforge.event.world.BlockEvent;
+import net.minecraft.item.ItemStack;
+import net.minecraft.util.ResourceLocation;
+import net.minecraft.util.text.TextComponentString;
 import net.minecraftforge.fml.common.Loader;
-import net.minecraftforge.fml.common.eventhandler.EventPriority;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
+/**
+ * Reskillable level-lock handling.
+ *
+ * <h3>Why the old "bypass" could never work for weapons</h3>
+ * The previous implementation did two client-side things: it wrote {@code info.setLevel(32)} into
+ * the local {@link PlayerData}, and it re-enabled cancelled events at {@code LOWEST} priority. Both
+ * are meaningless for combat.
+ *
+ * <p>{@code LevelLockHandler} enforces weapons through {@code LivingAttackEvent}, and its
+ * {@code tellPlayer} helper is guarded by {@code if (player instanceof EntityPlayerMP)} - it sends a
+ * {@code MessageLockedItem} packet <em>from the server to you</em>. So the red "you can't use this"
+ * warning is proof that the server, holding its own copy of your real skill levels, cancelled the
+ * hit. Nothing a client-only handler does can change that. Mining appeared to work because block
+ * breaking is heavily client-predicted, so you see the block go even when the server disagrees.</p>
+ *
+ * <p>Worse, faking the level locally made the client believe the swing was legal, so it kept sending
+ * attacks the server discarded - the exact "swing does nothing" symptom.</p>
+ *
+ * <h3>What actually works</h3>
+ * Raise the real levels on the server using Reskillable's own level-up packet. {@code MessageLevelUp}
+ * is validated server-side:
+ *
+ * <pre>
+ * if (!info.isCapped()) {
+ *     int cost = info.getLevelUpCost();
+ *     if (player.experienceLevel &gt;= cost || player.isCreative()) { ...levelUp()... }
+ * }
+ * </pre>
+ *
+ * There is no free path - the cost is enforced where we cannot reach it - but the packet carries
+ * nothing except a skill name, so we can drive it as fast as we like and buy exactly the levels the
+ * held item requires. That is a permanent, server-side unlock rather than a placebo.
+ */
 public class ReskillableHelper {
 
-    private static boolean modLoaded = false;
-    private static Field tooltipEnabledField = null;
+    private static final boolean MOD_LOADED = Loader.isModLoaded("reskillable");
 
-    static {
-        modLoaded = Loader.isModLoaded("reskillable");
-        if (modLoaded) {
-            try {
-                tooltipEnabledField = ToolTipHandler.class.getDeclaredField("enabled");
-                tooltipEnabledField.setAccessible(true);
-            } catch (Throwable ignored) {
+    /** Reflection fallback for reading a RequirementHolder's skill map across Reskillable builds. */
+    private static Field skillLevelsField = null;
+    private static boolean skillLevelsFieldResolved = false;
+
+    private int tickCounter = 0;
+    private int lastReportHash = 0;
+
+    // ------------------------------------------------------------------ API
+
+    public static boolean isModLoaded() {
+        return MOD_LOADED;
+    }
+
+    public static List<Skill> allSkills() {
+        List<Skill> out = new ArrayList<>();
+        try {
+            if (ReskillableRegistries.SKILLS != null) {
+                out.addAll(ReskillableRegistries.SKILLS.getValuesCollection());
             }
+        } catch (Throwable ignored) {}
+        return out;
+    }
+
+    public static Skill skillByName(String name) {
+        if (name == null) return null;
+        String key = name.toLowerCase().trim();
+        if (key.indexOf(':') < 0) key = "reskillable:" + key;
+        try {
+            Skill skill = ReskillableRegistries.SKILLS.getValue(new ResourceLocation(key));
+            if (skill != null) return skill;
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
+    public static int getLevel(Skill skill) {
+        try {
+            PlayerData data = PlayerDataHandler.get(Minecraft.getMinecraft().player);
+            if (data == null) return 0;
+            PlayerSkillInfo info = data.getSkillInfo(skill);
+            return info == null ? 0 : info.getLevel();
+        } catch (Throwable ignored) {
+            return 0;
         }
     }
 
-    private int tickCounter = 0;
+    public static int getLevelUpCost(Skill skill) {
+        try {
+            PlayerData data = PlayerDataHandler.get(Minecraft.getMinecraft().player);
+            if (data == null) return -1;
+            PlayerSkillInfo info = data.getSkillInfo(skill);
+            if (info == null || info.isCapped()) return -1;
+            return info.getLevelUpCost();
+        } catch (Throwable ignored) {
+            return -1;
+        }
+    }
+
+    public static boolean isCapped(Skill skill) {
+        try {
+            PlayerData data = PlayerDataHandler.get(Minecraft.getMinecraft().player);
+            PlayerSkillInfo info = data == null ? null : data.getSkillInfo(skill);
+            return info == null || info.isCapped();
+        } catch (Throwable ignored) {
+            return true;
+        }
+    }
+
+    /**
+     * Buys up to {@code levels} levels of {@code skill} through Reskillable's own packet.
+     *
+     * <p>Each packet is validated independently server-side, so we simulate the same affordability
+     * check locally to avoid firing packets that will simply be dropped. Returns how many were
+     * actually requested.</p>
+     */
+    public static int buyLevels(Skill skill, int levels) {
+        if (!MOD_LOADED || skill == null || levels <= 0) return 0;
+        EntityPlayerSP player = Minecraft.getMinecraft().player;
+        if (player == null) return 0;
+
+        int bought = 0;
+        try {
+            PlayerData data = PlayerDataHandler.get(player);
+            if (data == null) return 0;
+            PlayerSkillInfo info = data.getSkillInfo(skill);
+            if (info == null) return 0;
+
+            // Local mirror of the server's own arithmetic so we stop when we genuinely run out.
+            int simulatedLevel = info.getLevel();
+            int budget = player.experienceLevel - Math.max(0, FeatureConfig.reskillableXpReserve);
+
+            for (int i = 0; i < levels; i++) {
+                if (info.isCapped()) break;
+                int cost = info.getLevelUpCost();
+                if (!player.capabilities.isCreativeMode) {
+                    if (cost > budget) break;
+                    budget -= cost;
+                }
+                PacketHandler.INSTANCE.sendToServer(new MessageLevelUp(skill.getRegistryName()));
+                bought++;
+                simulatedLevel++;
+                // The server answers with a data sync; we cannot see the new cost until it lands,
+                // so assume the cost climbs by at least one level to stay conservative.
+                budget -= 1;
+            }
+        } catch (Throwable t) {
+            chat("\u00a7cReskillable level-up failed: " + t);
+        }
+        return bought;
+    }
+
+    /** Requirements of the item in the main hand, as skill -> required level. */
+    public static Map<Skill, Integer> requirementsForHeldItem() {
+        Map<Skill, Integer> out = new LinkedHashMap<>();
+        if (!MOD_LOADED) return out;
+        try {
+            EntityPlayerSP player = Minecraft.getMinecraft().player;
+            if (player == null) return out;
+            ItemStack stack = player.getHeldItemMainhand();
+            if (stack == null || stack.isEmpty()) return out;
+
+            RequirementHolder holder = LevelLockHandler.getSkillLock(stack);
+            if (holder == null || holder.equals(LevelLockHandler.EMPTY_LOCK)) return out;
+
+            // The field moved between Reskillable builds, so resolve it reflectively once.
+            if (!skillLevelsFieldResolved) {
+                skillLevelsFieldResolved = true;
+                for (Field f : holder.getClass().getFields()) {
+                    if (Map.class.isAssignableFrom(f.getType())) {
+                        f.setAccessible(true);
+                        skillLevelsField = f;
+                        break;
+                    }
+                }
+                if (skillLevelsField == null) {
+                    for (Field f : holder.getClass().getDeclaredFields()) {
+                        if (Map.class.isAssignableFrom(f.getType())) {
+                            f.setAccessible(true);
+                            skillLevelsField = f;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (skillLevelsField == null) return out;
+
+            Object value = skillLevelsField.get(holder);
+            if (!(value instanceof Map)) return out;
+            for (Map.Entry<?, ?> e : ((Map<?, ?>) value).entrySet()) {
+                if (e.getKey() instanceof Skill && e.getValue() instanceof Integer) {
+                    out.put((Skill) e.getKey(), (Integer) e.getValue());
+                }
+            }
+        } catch (Throwable ignored) {}
+        return out;
+    }
+
+    /** True when the server would currently let us use the held item. */
+    public static boolean canUseHeldItem() {
+        if (!MOD_LOADED) return true;
+        try {
+            EntityPlayerSP player = Minecraft.getMinecraft().player;
+            if (player == null) return true;
+            ItemStack stack = player.getHeldItemMainhand();
+            if (stack == null || stack.isEmpty()) return true;
+            PlayerData data = PlayerDataHandler.get(player);
+            if (data == null) return true;
+            RequirementHolder holder = LevelLockHandler.getSkillLock(stack);
+            return holder == null || data.matchStats(holder);
+        } catch (Throwable ignored) {
+            return true;
+        }
+    }
+
+    /** Buys exactly the levels the held item is missing. Returns a human-readable summary. */
+    public static String unlockHeldItem() {
+        if (!MOD_LOADED) return "\u00a7cReskillable is not loaded.";
+        EntityPlayerSP player = Minecraft.getMinecraft().player;
+        if (player == null) return "\u00a7cNo player.";
+
+        Map<Skill, Integer> required = requirementsForHeldItem();
+        if (required.isEmpty()) {
+            return canUseHeldItem()
+                    ? "\u00a7aThat item has no level lock - you can already use it."
+                    : "\u00a7eThat item is locked, but the requirement could not be read "
+                        + "(it may be an advancement or a CompatSkills requirement, not a skill level).";
+        }
+
+        StringBuilder summary = new StringBuilder();
+        int totalBought = 0;
+        for (Map.Entry<Skill, Integer> e : required.entrySet()) {
+            Skill skill = e.getKey();
+            int need = e.getValue();
+            int have = getLevel(skill);
+            if (have >= need) continue;
+
+            int bought = buyLevels(skill, need - have);
+            totalBought += bought;
+            if (summary.length() > 0) summary.append("\u00a77, ");
+            summary.append("\u00a7f").append(skill.getName()).append(" \u00a77")
+                   .append(have).append("\u00a78->\u00a7a").append(have + bought)
+                   .append("\u00a78/").append(need);
+        }
+
+        if (totalBought == 0) {
+            return "\u00a7cNot enough XP levels to buy anything. You have "
+                    + player.experienceLevel + " levels.";
+        }
+        return "\u00a7aBought " + totalBought + " level(s): " + summary
+                + "\u00a77 - re-check in a second, the server has to sync back.";
+    }
+
+    // ----------------------------------------------------------- auto-buy
 
     @SubscribeEvent
     public void onPlayerTick(TickEvent.PlayerTickEvent event) {
-        if (!modLoaded || !FeatureConfig.reskillableBypass || event.phase != TickEvent.Phase.START) return;
-
-        Minecraft mc = Minecraft.getMinecraft();
-        EntityPlayerSP player = mc.player;
+        if (!MOD_LOADED || event.phase != TickEvent.Phase.START) return;
+        EntityPlayerSP player = Minecraft.getMinecraft().player;
         if (player == null) return;
 
-        tickCounter++;
-        if (tickCounter % 20 == 0) {
-            try {
-                PlayerData data = PlayerDataHandler.get(player);
-                if (data != null) {
-                    if (ReskillableRegistries.SKILLS != null) {
-                        for (Skill skill : ReskillableRegistries.SKILLS.getValuesCollection()) {
-                            PlayerSkillInfo info = data.getSkillInfo(skill);
-                            if (info != null && info.getLevel() < 32) {
-                                info.setLevel(32);
-                            }
-                        }
-                    }
-                    if (ReskillableRegistries.UNLOCKABLES != null) {
-                        for (Unlockable unlockable : ReskillableRegistries.UNLOCKABLES.getValuesCollection()) {
-                            if (unlockable.getParentSkill() != null) {
-                                PlayerSkillInfo info = data.getSkillInfo(unlockable.getParentSkill());
-                                if (info != null && !info.isUnlocked(unlockable)) {
-                                    info.unlock(unlockable, player);
-                                }
-                            }
-                        }
-                    }
-                    RequirementCache cache = RequirementCache.getCache(player);
-                    if (cache != null) {
-                        cache.forceClear();
-                    }
-                }
-            } catch (Throwable ignored) {
+        if (++tickCounter % 20 != 0) return;
+
+        if (FeatureConfig.reskillableAutoBuy && !canUseHeldItem()) {
+            ItemStack held = player.getHeldItemMainhand();
+            int hash = held == null || held.isEmpty() ? 0 : held.getItem().hashCode();
+            if (hash != lastReportHash) {
+                lastReportHash = hash;
+                chat(unlockHeldItem());
             }
+        } else if (canUseHeldItem()) {
+            lastReportHash = 0;
         }
     }
 
-    // Un-cancel events intercepted by Reskillable's LevelLockHandler
-    @SubscribeEvent(priority = EventPriority.LOWEST, receiveCanceled = true)
-    public void onRightClickItem(PlayerInteractEvent.RightClickItem event) {
-        if (modLoaded && FeatureConfig.reskillableBypass && event.isCanceled()) {
-            event.setCanceled(false);
-        }
-    }
-
-    @SubscribeEvent(priority = EventPriority.LOWEST, receiveCanceled = true)
-    public void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
-        if (modLoaded && FeatureConfig.reskillableBypass && event.isCanceled()) {
-            event.setCanceled(false);
-        }
-    }
-
-    @SubscribeEvent(priority = EventPriority.LOWEST, receiveCanceled = true)
-    public void onLeftClickBlock(PlayerInteractEvent.LeftClickBlock event) {
-        if (modLoaded && FeatureConfig.reskillableBypass && event.isCanceled()) {
-            event.setCanceled(false);
-        }
-    }
-
-    @SubscribeEvent(priority = EventPriority.LOWEST, receiveCanceled = true)
-    public void onEntityInteract(PlayerInteractEvent.EntityInteract event) {
-        if (modLoaded && FeatureConfig.reskillableBypass && event.isCanceled()) {
-            event.setCanceled(false);
-        }
-    }
-
-    @SubscribeEvent(priority = EventPriority.LOWEST, receiveCanceled = true)
-    public void onBlockBreak(BlockEvent.BreakEvent event) {
-        if (modLoaded && FeatureConfig.reskillableBypass && event.isCanceled()) {
-            event.setCanceled(false);
-        }
-    }
-
-    @SubscribeEvent(priority = EventPriority.LOWEST, receiveCanceled = true)
-    public void onLivingAttack(LivingAttackEvent event) {
-        if (modLoaded && FeatureConfig.reskillableBypass && event.isCanceled()) {
-            event.setCanceled(false);
+    private static void chat(String message) {
+        EntityPlayerSP player = Minecraft.getMinecraft().player;
+        if (player != null) {
+            player.sendMessage(new TextComponentString("\u00a76[RLUtility] \u00a7r" + message));
         }
     }
 }

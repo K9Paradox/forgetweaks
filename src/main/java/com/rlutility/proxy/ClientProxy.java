@@ -24,7 +24,9 @@ import com.rlutility.modules.FirstAidHelper;
 import com.rlutility.modules.ItemMagnetHandler;
 import com.rlutility.modules.JesusHandler;
 import com.rlutility.modules.KillAuraHandler;
+import com.rlutility.modules.DupeExploitHandler;
 import com.rlutility.modules.LevelUpExploitHandler;
+import com.rlutility.modules.XRayHandler;
 import com.rlutility.modules.LocksHelper;
 import com.rlutility.modules.MovementEventHandler;
 import com.rlutility.modules.NoFallHandler;
@@ -94,6 +96,7 @@ public class ClientProxy extends CommonProxy {
         MinecraftForge.EVENT_BUS.register(new DebuffPurgerHandler());
         MinecraftForge.EVENT_BUS.register(new ReskillableHelper());
         MinecraftForge.EVENT_BUS.register(new EspRenderHelper());
+        MinecraftForge.EVENT_BUS.register(new XRayHandler());
         MinecraftForge.EVENT_BUS.register(new HudOverlay());
 
         ClientCommandHandler.instance.registerCommand(new CommandRLUtility());
@@ -113,6 +116,7 @@ public class ClientProxy extends CommonProxy {
 
         // Reports whether the server actually accepted the last Level Up! 2 skill packet.
         LevelUpExploitHandler.tick();
+        DupeExploitHandler.tick();
 
         if (mc.currentScreen != null) return;
 
@@ -135,6 +139,18 @@ public class ClientProxy extends CommonProxy {
     @SubscribeEvent
     public void onDisconnect(FMLNetworkEvent.ClientDisconnectionFromServerEvent event) {
         TimerHandler.reset();
+        DupeExploitHandler.onDisconnect();
+        XRayHandler.forceRescan();
+    }
+
+    /** The dupe flow arms itself on the join after you were told to relog. */
+    @SubscribeEvent
+    public void onJoinWorld(net.minecraftforge.event.entity.EntityJoinWorldEvent event) {
+        if (event.getWorld() != null && event.getWorld().isRemote
+                && event.getEntity() == Minecraft.getMinecraft().player) {
+            DupeExploitHandler.onJoinedWorld();
+            XRayHandler.forceRescan();
+        }
     }
 
     private void announce(Minecraft mc, String name, boolean state) {
