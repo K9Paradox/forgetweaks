@@ -19,10 +19,9 @@ import java.util.List;
 /**
  * The RLUtility hub.
  *
- * <p>Rebuilt from scratch as a custom-drawn panel: category rail on the left, scrollable module
- * list on the right, live search, inline numeric settings and - most importantly for server play -
- * a compatibility badge on every row telling you whether the module is server-authoritative,
- * mod-channel based, client-only or outright risky.</p>
+ * <p>Custom-drawn panel: category rail on the left, scrollable module list on the right, live
+ * search, and inline numeric settings. The footer wraps the hovered row's description over several
+ * lines rather than truncating it.</p>
  */
 public class GuiUtilityMenu extends GuiScreen {
 
@@ -43,12 +42,13 @@ public class GuiUtilityMenu extends GuiScreen {
 
     // ----------------------------------------------------------------- layout
     private static final int PANEL_W = 470;
-    private static final int PANEL_H = 268;
+    private static final int PANEL_H = 280;
     private static final int HEADER_H = 30;
-    private static final int FOOTER_H = 26;
+    private static final int FOOTER_H = 38;
     private static final int RAIL_W = 106;
     private static final int ROW_H = 20;
     private static final int ROW_GAP = 2;
+    private static final int FOOTER_LINES = 3;
 
     // ------------------------------------------------------------------ state
     private static Feature.Category selectedCategory = Feature.Category.COMBAT;
@@ -81,7 +81,7 @@ public class GuiUtilityMenu extends GuiScreen {
     private static class ToggleRow extends Row {
         final Feature feature;
         ToggleRow(Feature f) {
-            super(f.name, f.desc + "  \u00a78[" + f.compat.tooltip + "]");
+            super(f.name, f.desc);
             this.feature = f;
         }
         @Override void click(int button) {
@@ -90,12 +90,6 @@ public class GuiUtilityMenu extends GuiScreen {
         @Override void render(GuiUtilityMenu gui, int x, int y, int width) {
             boolean on = feature.isEnabled();
             gui.drawText(feature.name, x + 8, y + 6, on ? COL_TEXT : COL_DIM);
-
-            // compatibility badge
-            int badgeW = gui.fontRenderer.getStringWidth(feature.compat.badge) + 8;
-            int badgeX = x + width - 46 - badgeW;
-            rect(badgeX, y + 4, badgeX + badgeW, y + ROW_H - 4, (feature.compat.color & 0x00FFFFFF) | 0x33000000);
-            gui.drawText(feature.compat.badge, badgeX + 4, y + 6, feature.compat.color);
 
             // toggle pill
             int px = x + width - 38;
@@ -370,24 +364,21 @@ public class GuiUtilityMenu extends GuiScreen {
     }
 
     private void drawFooter(int x, int y) {
-        int fy = y + PANEL_H - FOOTER_H + 4;
-        if (hoveredDesc != null) {
-            String text = fontRenderer.trimStringToWidth(hoveredDesc, PANEL_W - 20);
-            drawText(text, x + 10, fy + 5, COL_DIM);
-        } else {
-            int lx = x + 10;
-            lx = drawLegend("SRV", Feature.Compat.SERVER.color, "server-side", lx, fy + 5);
-            lx = drawLegend("MOD", Feature.Compat.MODDED.color, "mod channel", lx, fy + 5);
-            lx = drawLegend("CLI", Feature.Compat.LOCAL.color, "client only", lx, fy + 5);
-            drawLegend("!!", Feature.Compat.RISKY.color, "flaggable", lx, fy + 5);
-        }
-    }
+        int fy = y + PANEL_H - FOOTER_H + 5;
+        String text = hoveredDesc != null
+                ? hoveredDesc
+                : "\u00a78Hover a row for details  \u00b7  type to search  \u00b7  scroll wheel to scroll  \u00b7  Esc to close";
 
-    private int drawLegend(String badge, int color, String text, int x, int y) {
-        drawText(badge, x, y, color);
-        int w = fontRenderer.getStringWidth(badge) + 3;
-        drawText("\u00a78" + text, x + w, y, COL_DIM);
-        return x + w + fontRenderer.getStringWidth(text) + 10;
+        // Wrap instead of truncating: descriptions were being cut off mid-word.
+        List<String> lines = fontRenderer.listFormattedStringToWidth(text, PANEL_W - 20);
+        for (int i = 0; i < lines.size() && i < FOOTER_LINES; i++) {
+            String line = lines.get(i);
+            // If the text is longer than we can show, ellipsize the final visible line.
+            if (i == FOOTER_LINES - 1 && lines.size() > FOOTER_LINES) {
+                line = fontRenderer.trimStringToWidth(line, PANEL_W - 30) + "...";
+            }
+            drawText(line, x + 10, fy + i * 10, COL_DIM);
+        }
     }
 
     void drawText(String text, int x, int y, int color) {

@@ -82,14 +82,12 @@ public class HudOverlay extends Gui {
         int y = 4;
         for (Feature f : active) {
             String label = f.name;
-            String badge = " " + f.compat.badge;
-            int w = fr.getStringWidth(label + badge);
+            int w = fr.getStringWidth(label);
             int x = screenWidth - w - 5;
 
             drawRect(x - 2, y - 1, screenWidth - 2, y + 9, PANEL_BG);
-            drawRect(screenWidth - 2, y - 1, screenWidth - 1, y + 9, f.compat.color);
+            drawRect(screenWidth - 2, y - 1, screenWidth - 1, y + 9, ACCENT);
             fr.drawStringWithShadow(label, x, y, TEXT);
-            fr.drawStringWithShadow(badge, x + fr.getStringWidth(label), y, f.compat.color);
             y += 11;
         }
     }

@@ -3,6 +3,7 @@ package com.rlutility.proxy;
 import com.rlutility.command.CommandQuestExploit;
 import com.rlutility.command.CommandRLUtility;
 import com.rlutility.command.CommandRaceExploit;
+import com.rlutility.command.CommandDesyncExploit;
 import com.rlutility.command.CommandSkillExploit;
 import com.rlutility.command.CommandUnlockAll;
 import com.rlutility.gui.GuiUtilityMenu;
@@ -100,6 +101,7 @@ public class ClientProxy extends CommonProxy {
         ClientCommandHandler.instance.registerCommand(new CommandRaceExploit());
         ClientCommandHandler.instance.registerCommand(new CommandQuestExploit());
         ClientCommandHandler.instance.registerCommand(new CommandUnlockAll());
+        ClientCommandHandler.instance.registerCommand(new CommandDesyncExploit());
     }
 
     @SubscribeEvent
