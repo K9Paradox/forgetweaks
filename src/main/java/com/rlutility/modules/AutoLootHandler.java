@@ -7,7 +7,7 @@ import net.minecraft.client.gui.inventory.GuiContainerCreative;
 import net.minecraft.client.gui.inventory.GuiCrafting;
 import net.minecraft.client.gui.inventory.GuiFurnace;
 import net.minecraft.client.gui.inventory.GuiInventory;
-import net.minecraft.client.gui.inventory.GuiRepair;
+import net.minecraft.client.gui.GuiRepair;
 import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraft.inventory.ClickType;
 import net.minecraft.inventory.Container;
