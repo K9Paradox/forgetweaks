@@ -13,13 +13,14 @@ buildscript {
 
 apply plugin: 'net.minecraftforge.gradle.forge'
 
-version = "1.0.0"
+version = "1.4.0"
 group = "com.rlutility"
 archivesBaseName = "rlutility"
 
 sourceCompatibility = targetCompatibility = '1.8'
 compileJava {
     sourceCompatibility = targetCompatibility = '1.8'
+    options.encoding = 'UTF-8'
 }
 
 minecraft {
@@ -32,25 +33,55 @@ repositories {
     mavenCentral()
 }
 
+// ---------------------------------------------------------------------------
+// RLCraft mod jars are compile-time only dependencies.
+//
+// Drop them in ./libs (recommended, machine independent) or point the build at
+// an existing instance:
+//
+//   gradle build -PrlcraftMods="C:/Users/<you>/AppData/Roaming/PrismLauncher/instances/RLCraft/minecraft/mods"
+//
+// or set RLCRAFT_MODS in the environment. Missing jars are simply skipped, so
+// the project still configures on a machine without an RLCraft install.
+// ---------------------------------------------------------------------------
+ext.rlcraftModsDir = project.findProperty('rlcraftMods')
+        ?: System.getenv('RLCRAFT_MODS')
+        ?: "${projectDir}/libs"
+
+ext.rlcraftJars = [
+    'Reskillable-1.12.2-1.13.0.jar',
+    'firstaid-1.6.22.jar',
+    'SimpleDifficulty-1.12.2-0.3.9.jar',
+    'notreepunching-2.0.21.jar',
+    'QualityTools-1.0.7_for_1.12.2.jar',
+    'Locks-1.12.2-3.0.0.jar',
+    'ItemPhysic_Full_1.4.37_mc1.12.2.jar',
+    'better_survival-1.5.3.jar',
+    'Bountiful Baubles-1.12.2-0.1.8.jar',
+    'RLCombat-1.12.2-2.0.8.jar',
+    'Level Up- 2-1.1.23-1.12.jar',
+    'BetterQuesting-3.5.329.jar',
+    'StandardExpansion-3.4.173.jar',
+    'iceandfire-1.7.1-1.12.2.jar',
+    'SpartanWeaponry-1.12.2-1.5.3.jar',
+    'Trinkets and Baubles-32.4.jar'
+]
+
 dependencies {
-    compile fileTree(dir: 'C:/Users/K9/AppData/Roaming/PrismLauncher/instances/RLCraft/minecraft/mods', include: [
-        'Reskillable-1.12.2-1.13.0.jar',
-        'firstaid-1.6.22.jar',
-        'SimpleDifficulty-1.12.2-0.3.9.jar',
-        'notreepunching-2.0.21.jar',
-        'QualityTools-1.0.7_for_1.12.2.jar',
-        'Locks-1.12.2-3.0.0.jar',
-        'ItemPhysic_Full_1.4.37_mc1.12.2.jar',
-        'better_survival-1.5.3.jar',
-        'Bountiful Baubles-1.12.2-0.1.8.jar',
-        'RLCombat-1.12.2-2.0.8.jar',
-        'Level Up- 2-1.1.23-1.12.jar',
-        'BetterQuesting-3.5.329.jar',
-        'StandardExpansion-3.4.173.jar',
-        'iceandfire-1.7.1-1.12.2.jar',
-        'SpartanWeaponry-1.12.2-1.5.3.jar',
-        'Trinkets and Baubles-32.4.jar'
-    ])
+    compile fileTree(dir: rlcraftModsDir, include: rlcraftJars)
+}
+
+task checkRlcraftDeps {
+    doLast {
+        def dir = file(rlcraftModsDir)
+        def missing = rlcraftJars.findAll { !new File(dir, it).exists() }
+        if (missing) {
+            logger.lifecycle("Missing RLCraft dependency jars in ${dir}:")
+            missing.each { logger.lifecycle("  - ${it}") }
+        } else {
+            logger.lifecycle("All RLCraft dependency jars found in ${dir}")
+        }
+    }
 }
 
 processResources {

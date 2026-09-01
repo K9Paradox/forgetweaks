@@ -1,54 +1,67 @@
-# RLExperiments & RLUtility Project State Summary
+# RLUtility — Project State Summary
 
-## 1. Project Overview & Architecture
-- **Mod Name**: `rlutility` (Minecraft 1.12.2 / Forge 14.23.5.2860 / Java 8 Adoptium).
-- **Project Root**: `C:\Users\K9\Desktop\RLExperiments`
-- **Output Jar Destination**: `C:\Users\K9\AppData\Roaming\PrismLauncher\instances\RLCraft\minecraft\mods\rlutility-1.0.0.jar`
-- **Build Toolchain**:
-  - JDK: `C:\Program Files\Eclipse Adoptium\jdk-8.0.504.1-hotspot`
-  - Gradle Wrapper: `C:\Users\K9\.gradle\wrapper\dists\gradle-4.9-bin\e9cinqnqvph59rr7g70qubb4t\gradle-4.9\bin\gradle.bat`
-  - Command: `$env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-8.0.504.1-hotspot"; & $gradle build -x test`
+## 1. Overview
+- **Mod id / name**: `rlutility` / RLUtility — version **1.4.0**
+- **Target**: Minecraft 1.12.2, Forge 14.23.5.x, Java 8, RLCraft **2.9.3**
+- **Scope**: client-side only (`clientSideOnly = true`, `acceptableRemoteVersions = "*"`), designed so
+  that as much as possible is *server-authoritative* and therefore usable in multiplayer.
 
----
+## 2. Architecture
 
-## 2. Lock Solver Engine (`LocksHelper.java`)
-Automated solver targeting the `melonslise.locks` mod (3.0.0).
+```
+com.rlutility
+├── RLUtilityMod            @Mod entry point. preInit -> FeatureConfig.init(configDir)
+├── proxy
+│   ├── CommonProxy         no-op (dedicated server never loads a client class)
+│   └── ClientProxy         keybinds, commands, and ALL event-handler registration
+├── modules
+│   ├── FeatureConfig       reflective persistence of every public static field
+│   ├── Feature             {name, desc, Category, Compat, getter, setter}
+│   ├── FeatureRegistry     single source of truth for the GUI + HUD
+│   └── *Handler / *Helper  one module each
+└── gui
+    ├── GuiUtilityMenu      custom-drawn hub: rail + search + scroll list + settings
+    ├── HudOverlay          watermark, module array list, stats, target info
+    └── GuiLevelUpConfig    per-skill Level Up! 2 editor
+```
 
-### Key Mechanics:
-1. **Permutation Architecture**:
-   - Locks are strict mathematical permutations of $\{0, 1, \dots, N-1\}$ with no repeated pins.
-   - Master/Diamond locks feature up to 11 pins ($11! = 39,916,800$ permutations).
-2. **Audio Pitch Mechanics & Decompiled Logic**:
-   - `PIN_MATCH` ($1.0$ pitch): Marks pin correct, advances server slot index, and removes that pin value from all other slot candidate sets.
-   - `PIN_FAIL` (on survival): Plays sound with pitch $1.25$ if $|actual - guess| \le 1$ (adjacent), or pitch $1.0$ if $|actual - guess| > 1$ (distant).
-   - **Pick Breaks (`tryBreakPick`)**: If a pick breaks, the server resets container state and sends `CheckPinResultPacket(false, true)`, **bypassing the fail sound completely**.
-3. **Optimizations Implemented**:
-   - **Line-Speed Replay**: Solved pins replay at 1 pin per tick (50ms) using direct C2S `CheckPinPacket` packets.
-   - **Minimax Entropy Partitioning (`selectOptimalProbeCandidate`)**: Balances adjacent vs distant outcomes to divide candidate sets by 50% on every test.
-   - **Instant Permutation Deduction**: Pin $N-1$ (slot 11 on an 11-pin lock) is 100% deduced with zero guessing.
-   - **Cleaned GUI**: Unified under single toggle `Auto-Lockpick (Audio/Entropy Solver)`.
+**Adding a module** is three steps:
+1. add a `public static boolean` (and any numeric settings) to `FeatureConfig` — persistence is automatic;
+2. add one `f(...)` line (and optional `s(...)` setting) in `FeatureRegistry` with its `Compat` tag;
+3. register the handler in `ClientProxy.init()`.
 
----
+## 3. Compatibility taxonomy
+`Feature.Compat` drives the badge shown in the GUI and HUD:
 
-## 3. Exploit Hub Modules (`FeatureConfig.java` & `GuiUtilityMenu.java`)
-- **Keybind**: `O` opens the exploit GUI.
-- **Features**:
-  - `autoCriticals`: Injects fall packets / velocity triggers on attack to guarantee 100% critical hit damage.
-  - `noFall`: Client-side ground spoofing to cancel fall damage.
-  - `noSlowdown`: Prevents movement slowdown while eating or drawing bows.
-  - `fastTriage`: Automated offhand totem/bandage swapping.
-  - `stepSpeed`: Step-height modifier and legit sprint speed adjustments.
-  - `clientDebuffNeutralizer`: Clears screen shake and instability effects from Lycanites / FirstAid.
-  - `clientItemVacuum`: Nearby item pickup via ItemPhysic interception.
-  - `creativeFly`: Client-side flight capabilities.
-  - `autoLockpick`: High-speed audio/entropy packet lock solver.
+| Value    | Badge | Meaning |
+|----------|-------|---------|
+| `SERVER` | `SRV` | Vanilla C2S packets / window clicks — authoritative on any server |
+| `MODDED` | `MOD` | Mod network channel — server must run that mod |
+| `LOCAL`  | `CLI` | Client-only, cosmetic/prediction |
+| `RISKY`  | `!!`  | Client-only and easily rejected/flagged |
 
----
+## 4. Lock Solver (`LocksHelper`) — unchanged
+Targets `melonslise.locks` 3.0.0.
+1. Locks are strict permutations of `{0..N-1}`; master/diamond locks are 11 pins (11! ≈ 39.9M).
+2. Audio feedback: `pin.match` (pitch 1.0) confirms a pin and removes it from every other slot's
+   candidate set; `pin.fail` at pitch 1.25 means `|actual - guess| <= 1`, pitch 1.0 means distant.
+3. Pick breaks send `CheckPinResultPacket(false, true)` with no fail sound — detected via a drop in
+   the lifted-pin count.
+4. Optimisations: known prefix replayed at one pin per tick, minimax entropy probe selection, and the
+   final pin deduced with zero guesses.
 
-## 4. Deployment Command Reference
+## 5. Notable fixes in 1.4.0
+- Dedicated-server crash paths removed (`Minecraft` reference in config, client handlers registered
+  from the common entry point).
+- `NoFall` no longer cancels `AutoCriticals` (shared `AutoCritHandler.critWindow`).
+- Crit hop sent once, before the attack packet, instead of twice with half of it too late.
+- `NoSlowdown` no longer overwrites the `MOVEMENT_SPEED` attribute base value.
+- ESP snapshots the world lists (no more CME risk) and is distance-culled.
+- `build.gradle` no longer hard-codes a Windows path for the RLCraft dependency jars.
+
+## 6. Deployment
 ```powershell
 $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-8.0.504.1-hotspot"
-$gradle = "C:\Users\K9\.gradle\wrapper\dists\gradle-4.9-bin\e9cinqnqvph59rr7g70qubb4t\gradle-4.9\bin\gradle.bat"
-& $gradle build -x test
-Copy-Item -Path "C:\Users\K9\Desktop\RLExperiments\build\libs\rlutility-1.0.0.jar" -Destination "C:\Users\K9\AppData\Roaming\PrismLauncher\instances\RLCraft\minecraft\mods\rlutility-1.0.0.jar" -Force
+gradle build -x test -PrlcraftMods="C:\Users\K9\AppData\Roaming\PrismLauncher\instances\RLCraft\minecraft\mods"
+Copy-Item build\libs\rlutility-1.4.0.jar "$env:APPDATA\PrismLauncher\instances\RLCraft\minecraft\mods\" -Force
 ```

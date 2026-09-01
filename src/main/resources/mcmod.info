@@ -1,13 +1,13 @@
 [
   {
     "modid": "rlutility",
-    "name": "RLUtility Mod",
-    "description": "Utility and enhancement mod for RLCraft 1.12.2.",
+    "name": "RLUtility",
+    "description": "Client-side utility and exploit hub for RLCraft 2.9.3 (Minecraft 1.12.2). Every module is tagged in-game with how it behaves on a multiplayer server.",
     "version": "${version}",
     "mcversion": "${mcversion}",
     "url": "",
     "updateUrl": "",
-    "authorList": ["Developer"],
+    "authorList": ["K9Paradox"],
     "credits": "",
     "logoFile": "",
     "screenshots": [],

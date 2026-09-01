@@ -1,234 +1,486 @@
 package com.rlutility.gui;
 
+import com.rlutility.RLUtilityMod;
 import com.rlutility.modules.AutoReforgerHandler;
+import com.rlutility.modules.Feature;
 import com.rlutility.modules.FeatureConfig;
+import com.rlutility.modules.FeatureRegistry;
+import com.rlutility.modules.LevelUpExploitHandler;
+import net.minecraft.client.gui.GuiScreen;
+import net.minecraft.client.renderer.GlStateManager;
+import net.minecraft.util.ChatAllowedCharacters;
+import org.lwjgl.input.Keyboard;
+import org.lwjgl.input.Mouse;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import net.minecraft.client.gui.GuiButton;
-import net.minecraft.client.gui.GuiScreen;
-import net.minecraft.util.text.TextFormatting;
 
+/**
+ * The RLUtility hub.
+ *
+ * <p>Rebuilt from scratch as a custom-drawn panel: category rail on the left, scrollable module
+ * list on the right, live search, inline numeric settings and - most importantly for server play -
+ * a compatibility badge on every row telling you whether the module is server-authoritative,
+ * mod-channel based, client-only or outright risky.</p>
+ */
 public class GuiUtilityMenu extends GuiScreen {
 
-    private enum Tab {
-        COMBAT("Combat & Defense"),
-        MOVEMENT("Movement"),
-        EXPLOITS("Mod Exploits"),
-        VISUALS("Visuals & ESP");
+    // ---------------------------------------------------------------- palette
+    private static final int COL_SHADOW    = 0x66000000;
+    private static final int COL_PANEL     = 0xF00C1017;
+    private static final int COL_HEADER    = 0xFF131A24;
+    private static final int COL_RAIL      = 0xFF0F141C;
+    private static final int COL_ROW       = 0x14FFFFFF;
+    private static final int COL_ROW_HOVER = 0x2AFFFFFF;
+    private static final int COL_SEL       = 0x33FFC24B;
+    private static final int COL_ACCENT    = 0xFFFFC24B;
+    private static final int COL_TEXT      = 0xFFE6EDF3;
+    private static final int COL_DIM       = 0xFF7D8894;
+    private static final int COL_ON        = 0xFF4ADE80;
+    private static final int COL_OFF       = 0xFF3A424C;
+    private static final int COL_LINE      = 0xFF1E2733;
 
-        final String title;
-        Tab(String title) {
-            this.title = title;
-        }
+    // ----------------------------------------------------------------- layout
+    private static final int PANEL_W = 470;
+    private static final int PANEL_H = 268;
+    private static final int HEADER_H = 30;
+    private static final int FOOTER_H = 26;
+    private static final int RAIL_W = 106;
+    private static final int ROW_H = 20;
+    private static final int ROW_GAP = 2;
+
+    // ------------------------------------------------------------------ state
+    private static Feature.Category selectedCategory = Feature.Category.COMBAT;
+    private static String searchQuery = "";
+
+    private int panelX, panelY;
+    private int scroll = 0;
+    private int caretTimer = 0;
+    private String hoveredDesc = null;
+
+    private final List<Row> rows = new ArrayList<>();
+
+    // ------------------------------------------------------------------- rows
+    /** Wrapper so the nested row classes never touch Gui's protected static drawRect directly. */
+    private static void rect(int left, int top, int right, int bottom, int color) {
+        drawRect(left, top, right, bottom, color);
     }
 
-    private Tab currentTab = Tab.COMBAT;
-    private final List<FeatureToggle> toggles = new ArrayList<>();
-
-    private static class FeatureToggle {
-        final String name;
-        final String desc;
-        final java.util.function.Supplier<Boolean> getter;
-        final java.util.function.Consumer<Boolean> setter;
-
-        FeatureToggle(String name, String desc, java.util.function.Supplier<Boolean> getter, java.util.function.Consumer<Boolean> setter) {
-            this.name = name;
+    private abstract static class Row {
+        String label;
+        String desc;
+        Row(String label, String desc) {
+            this.label = label;
             this.desc = desc;
-            this.getter = getter;
-            this.setter = setter;
+        }
+        abstract void click(int button);
+        void render(GuiUtilityMenu gui, int x, int y, int width) {}
+    }
+
+    private static class ToggleRow extends Row {
+        final Feature feature;
+        ToggleRow(Feature f) {
+            super(f.name, f.desc + "  \u00a78[" + f.compat.tooltip + "]");
+            this.feature = f;
+        }
+        @Override void click(int button) {
+            feature.toggle();
+        }
+        @Override void render(GuiUtilityMenu gui, int x, int y, int width) {
+            boolean on = feature.isEnabled();
+            gui.drawText(feature.name, x + 8, y + 6, on ? COL_TEXT : COL_DIM);
+
+            // compatibility badge
+            int badgeW = gui.fontRenderer.getStringWidth(feature.compat.badge) + 8;
+            int badgeX = x + width - 46 - badgeW;
+            rect(badgeX, y + 4, badgeX + badgeW, y + ROW_H - 4, (feature.compat.color & 0x00FFFFFF) | 0x33000000);
+            gui.drawText(feature.compat.badge, badgeX + 4, y + 6, feature.compat.color);
+
+            // toggle pill
+            int px = x + width - 38;
+            int py = y + 5;
+            rect(px, py, px + 28, py + 10, on ? COL_ON : COL_OFF);
+            int knobX = on ? px + 18 : px + 1;
+            rect(knobX, py + 1, knobX + 9, py + 9, 0xFF0C1017);
         }
     }
 
+    private static class SettingRow extends Row {
+        final FeatureRegistry.Setting setting;
+        SettingRow(FeatureRegistry.Setting s) {
+            super(s.name, s.desc + "  \u00a78[left click +  \u00b7  right click -]");
+            this.setting = s;
+        }
+        @Override void click(int button) {
+            setting.adjust(button == 1 ? -1 : 1);
+        }
+        @Override void render(GuiUtilityMenu gui, int x, int y, int width) {
+            gui.drawText("\u00a77" + setting.name, x + 8, y + 6, COL_DIM);
+            String value = setting.value();
+            int w = gui.fontRenderer.getStringWidth(value) + 14;
+            rect(x + width - w - 6, y + 3, x + width - 6, y + ROW_H - 3, 0x22FFC24B);
+            gui.drawText(value, x + width - w - 6 + 7, y + 6, COL_ACCENT);
+        }
+    }
+
+    private static class ActionRow extends Row {
+        final Runnable action;
+        final String value;
+        ActionRow(String label, String desc, String value, Runnable action) {
+            super(label, desc);
+            this.value = value;
+            this.action = action;
+        }
+        @Override void click(int button) {
+            action.run();
+        }
+        @Override void render(GuiUtilityMenu gui, int x, int y, int width) {
+            gui.drawText(label, x + 8, y + 6, COL_TEXT);
+            if (value != null) {
+                int w = gui.fontRenderer.getStringWidth(value) + 14;
+                rect(x + width - w - 6, y + 3, x + width - 6, y + ROW_H - 3, 0x22FFC24B);
+                gui.drawText(value, x + width - w - 6 + 7, y + 6, COL_ACCENT);
+            }
+        }
+    }
+
+    // --------------------------------------------------------------- lifecycle
     @Override
     public void initGui() {
         super.initGui();
-        rebuildAllButtons();
-    }
-
-    private void rebuildAllButtons() {
-        this.buttonList.clear();
-        toggles.clear();
-
-        int panelWidth = 400;
-        int panelHeight = 230;
-        int startX = (this.width - panelWidth) / 2;
-        int startY = (this.height - panelHeight) / 2;
-
-        // 1. Build Tab Navigation Buttons (Top Header)
-        int tabCount = Tab.values().length;
-        int tabWidth = (panelWidth - 20) / tabCount;
-        for (int i = 0; i < tabCount; i++) {
-            Tab t = Tab.values()[i];
-            String tabText = (t == currentTab)
-                    ? TextFormatting.GOLD + "" + TextFormatting.BOLD + t.title
-                    : TextFormatting.GRAY + t.title;
-            GuiButton tabBtn = new GuiButton(100 + i, startX + 10 + i * tabWidth, startY + 30, tabWidth - 4, 20, tabText);
-            tabBtn.enabled = (t != currentTab);
-            this.buttonList.add(tabBtn);
-        }
-
-        // 2. Populate Feature Toggles according to currentTab
-        if (currentTab == Tab.COMBAT) {
-            toggles.add(new FeatureToggle("Auto Criticals", "Spoofs fall-packet on hit for 100% crit multiplier", () -> FeatureConfig.autoCriticals, v -> FeatureConfig.autoCriticals = v));
-            toggles.add(new FeatureToggle("Level Damage Bypass", "Bypasses Reskillable attack lock on weapons", () -> FeatureConfig.levelDamageBypass, v -> FeatureConfig.levelDamageBypass = v));
-            toggles.add(new FeatureToggle("Nunchaku Triggerbot", "Continuous spinning DPS packet shredder", () -> FeatureConfig.autoTriggerbot, v -> FeatureConfig.autoTriggerbot = v));
-            toggles.add(new FeatureToggle("FirstAid Auto-Triage", "0-tick background body/head healing", () -> FeatureConfig.firstAidAutoHeal, v -> FeatureConfig.firstAidAutoHeal = v));
-            toggles.add(new FeatureToggle("Fast Triage", "Accelerate healing ticks on limbs", () -> FeatureConfig.fastTriage, v -> FeatureConfig.fastTriage = v));
-        } else if (currentTab == Tab.MOVEMENT) {
-            toggles.add(new FeatureToggle("No Fall Damage", "Cancels downward momentum impact packets", () -> FeatureConfig.noFall, v -> FeatureConfig.noFall = v));
-            toggles.add(new FeatureToggle("Step Assist & Speed", "Step up full blocks smoothly", () -> FeatureConfig.stepSpeed, v -> FeatureConfig.stepSpeed = v));
-            toggles.add(new FeatureToggle("Creative Flight", "Enables flight capabilities", () -> FeatureConfig.creativeFly, v -> FeatureConfig.creativeFly = v));
-            toggles.add(new FeatureToggle("No Slowdown", "Bypass cobweb, drawing and eating slowdown", () -> FeatureConfig.noSlowdown, v -> FeatureConfig.noSlowdown = v));
-        } else if (currentTab == Tab.EXPLOITS) {
-            toggles.add(new FeatureToggle("Fast Mine / Break", "Restores speed & eliminates block hit delay", () -> FeatureConfig.fastMine, v -> FeatureConfig.fastMine = v));
-            toggles.add(new FeatureToggle("Auto Reforger", "Auto-rolls QualityTools & Bountiful Baubles", () -> FeatureConfig.autoReforge, v -> FeatureConfig.autoReforge = v));
-            toggles.add(new FeatureToggle("Auto Lockpick", "Instantly solves Locks tumbler puzzles", () -> FeatureConfig.autoLockpick, v -> FeatureConfig.autoLockpick = v));
-            toggles.add(new FeatureToggle("Item Vacuum", "Remote siphon loot packets through walls", () -> FeatureConfig.clientItemVacuum, v -> FeatureConfig.clientItemVacuum = v));
-            toggles.add(new FeatureToggle("Debuff Neutralizer", "Auto-clears potion and dizzy shake debuffs", () -> FeatureConfig.clientDebuffNeutralizer, v -> FeatureConfig.clientDebuffNeutralizer = v));
-            toggles.add(new FeatureToggle("Reskillable Bypass", "Bypasses client skill requirement lockouts", () -> FeatureConfig.reskillableBypass, v -> FeatureConfig.reskillableBypass = v));
-            toggles.add(new FeatureToggle("Auto Hydrate", "Auto-drinks water without opening inventory", () -> FeatureConfig.simpleDifficultyAutoHydrate, v -> FeatureConfig.simpleDifficultyAutoHydrate = v));
-        } else if (currentTab == Tab.VISUALS) {
-            toggles.add(new FeatureToggle("Chest ESP", "Highlights normal and Ender chests through walls", () -> FeatureConfig.espChests, v -> FeatureConfig.espChests = v));
-            toggles.add(new FeatureToggle("Mob Spawner ESP", "Highlights dungeon and battle tower spawners", () -> FeatureConfig.espSpawners, v -> FeatureConfig.espSpawners = v));
-            toggles.add(new FeatureToggle("Waystone ESP", "Highlights discovered and wild waystones", () -> FeatureConfig.espWaystones, v -> FeatureConfig.espWaystones = v));
-            toggles.add(new FeatureToggle("Dragon & Boss ESP", "Highlights underground dragon dens & sea serpents", () -> FeatureConfig.espDragons, v -> FeatureConfig.espDragons = v));
-        }
-
-        // 3. Build Two-Column Grid for Toggles with Fixed width 185px <= 200px
-        int btnStartY = startY + 56;
-        int btnWidth = 185;
-        int btnHeight = 20;
-        int colGap = 10;
-        int rowGap = 24;
-
-        for (int i = 0; i < toggles.size(); i++) {
-            FeatureToggle toggle = toggles.get(i);
-            int col = i % 2;
-            int row = i / 2;
-            int x = startX + 10 + col * (btnWidth + colGap);
-            int y = btnStartY + row * rowGap;
-            String status = toggle.getter.get() ? TextFormatting.GREEN + "[ON]" : TextFormatting.RED + "[OFF]";
-            this.buttonList.add(new GuiButton(i, x, y, btnWidth, btnHeight, toggle.name + " " + status));
-        }
-
-        // Special Config Buttons for Auto Reforger Quality Target & LevelUp 2 Exploit (Exploits Tab)
-        if (currentTab == Tab.EXPLOITS) {
-            int extraRowY = btnStartY + ((toggles.size() + 1) / 2) * rowGap;
-            this.buttonList.add(new GuiButton(300, startX + 10, extraRowY, 185, 20, TextFormatting.YELLOW + "Reforge: " + TextFormatting.WHITE + FeatureConfig.targetQuality));
-            this.buttonList.add(new GuiButton(310, startX + 205, extraRowY, 185, 20, TextFormatting.GOLD + "" + TextFormatting.BOLD + "Skill Tree Editor..."));
-            
-            // LevelUp 2 Custom Level Controls: [-] [Level: X] [+] [Apply]
-            int lvlY = extraRowY + rowGap;
-            this.buttonList.add(new GuiButton(302, startX + 10, lvlY, 28, 20, TextFormatting.RED + "-5"));
-            this.buttonList.add(new GuiButton(303, startX + 40, lvlY, 28, 20, TextFormatting.RED + "-1"));
-            this.buttonList.add(new GuiButton(304, startX + 70, lvlY, 65, 20, TextFormatting.AQUA + "Lvl: " + TextFormatting.WHITE + FeatureConfig.customLevelTarget));
-            this.buttonList.add(new GuiButton(305, startX + 137, lvlY, 28, 20, TextFormatting.GREEN + "+1"));
-            this.buttonList.add(new GuiButton(306, startX + 167, lvlY, 28, 20, TextFormatting.GREEN + "+5"));
-
-            this.buttonList.add(new GuiButton(301, startX + 205, lvlY, 185, 20, TextFormatting.LIGHT_PURPLE + "" + TextFormatting.BOLD + "Apply Level [" + FeatureConfig.customLevelTarget + "] (0-XP)"));
-        }
-
-        // 4. Close Button at bottom
-        this.buttonList.add(new GuiButton(200, startX + (panelWidth - 120) / 2, startY + panelHeight - 24, 120, 20, TextFormatting.WHITE + "Close Menu"));
+        panelX = (this.width - PANEL_W) / 2;
+        panelY = (this.height - PANEL_H) / 2;
+        rebuildRows();
     }
 
     @Override
-    protected void actionPerformed(GuiButton button) throws IOException {
-        if (button.id >= 100 && button.id < 100 + Tab.values().length) {
-            int tabIndex = button.id - 100;
-            currentTab = Tab.values()[tabIndex];
-            rebuildAllButtons();
-        } else if (button.id == 200) {
-            this.mc.displayGuiScreen(null);
-            if (this.mc.currentScreen == null) {
-                this.mc.setIngameFocus();
-            }
-        } else if (button.id == 300) {
-            // Cycle through Quality Presets
-            String[] presets = AutoReforgerHandler.QUALITY_PRESETS;
-            int nextIdx = 0;
-            for (int i = 0; i < presets.length; i++) {
-                if (presets[i].equals(FeatureConfig.targetQuality)) {
-                    nextIdx = (i + 1) % presets.length;
-                    break;
-                }
-            }
-            FeatureConfig.targetQuality = presets[nextIdx];
-            FeatureConfig.saveConfig();
-            button.displayString = TextFormatting.YELLOW + "Reforge: " + TextFormatting.WHITE + FeatureConfig.targetQuality;
-        } else if (button.id == 310) {
-            this.mc.displayGuiScreen(new GuiLevelUpConfig(this));
-            return;
-        } else if (button.id == 301) {
-            com.rlutility.modules.LevelUpExploitHandler.setAllSkillsLevel(FeatureConfig.customLevelTarget);
-        } else if (button.id == 302) {
-            FeatureConfig.customLevelTarget = Math.max(0, FeatureConfig.customLevelTarget - 5);
-            FeatureConfig.saveConfig();
-            rebuildAllButtons();
-        } else if (button.id == 303) {
-            FeatureConfig.customLevelTarget = Math.max(0, FeatureConfig.customLevelTarget - 1);
-            FeatureConfig.saveConfig();
-            rebuildAllButtons();
-        } else if (button.id == 304) {
-            // Preset cycle: 5 -> 10 -> 25 -> 50 -> 100 -> 255 -> 0
-            int cur = FeatureConfig.customLevelTarget;
-            if (cur < 5) FeatureConfig.customLevelTarget = 5;
-            else if (cur < 10) FeatureConfig.customLevelTarget = 10;
-            else if (cur < 25) FeatureConfig.customLevelTarget = 25;
-            else if (cur < 50) FeatureConfig.customLevelTarget = 50;
-            else if (cur < 100) FeatureConfig.customLevelTarget = 100;
-            else if (cur < 255) FeatureConfig.customLevelTarget = 255;
-            else FeatureConfig.customLevelTarget = 10;
-            FeatureConfig.saveConfig();
-            rebuildAllButtons();
-        } else if (button.id == 305) {
-            FeatureConfig.customLevelTarget = Math.min(1000, FeatureConfig.customLevelTarget + 1);
-            FeatureConfig.saveConfig();
-            rebuildAllButtons();
-        } else if (button.id == 306) {
-            FeatureConfig.customLevelTarget = Math.min(1000, FeatureConfig.customLevelTarget + 5);
-            FeatureConfig.saveConfig();
-            rebuildAllButtons();
-        } else if (button.id >= 0 && button.id < toggles.size()) {
-            FeatureToggle toggle = toggles.get(button.id);
-            toggle.setter.accept(!toggle.getter.get());
-            FeatureConfig.saveConfig();
-            String status = toggle.getter.get() ? TextFormatting.GREEN + "[ON]" : TextFormatting.RED + "[OFF]";
-            button.displayString = toggle.name + " " + status;
-        }
-    }
-
-    @Override
-    public void drawScreen(int mouseX, int mouseY, float partialTicks) {
-        int panelWidth = 400;
-        int panelHeight = 230;
-        int startX = (this.width - panelWidth) / 2;
-        int startY = (this.height - panelHeight) / 2;
-
-        // Dark translucent glass panel background centered
-        drawDefaultBackground();
-        drawRect(startX, startY, startX + panelWidth, startY + panelHeight, 0xD012161E);
-        drawRect(startX + 2, startY + 2, startX + panelWidth - 2, startY + 24, 0xEE1E2430);
-
-        // Header Title
-        String title = TextFormatting.GOLD + "" + TextFormatting.BOLD + "RLUtility v1.0.0 " + TextFormatting.DARK_GRAY + "| " + TextFormatting.WHITE + "RLCraft 2.9.3 Exploits Hub";
-        drawCenteredString(this.fontRenderer, title, this.width / 2, startY + 8, 0xFFFFFF);
-
-        // Draw standard GUI buttons
-        super.drawScreen(mouseX, mouseY, partialTicks);
-
-        // Tooltip rendering for hovered buttons
-        for (GuiButton b : this.buttonList) {
-            if (b.id >= 0 && b.id < toggles.size() && b.isMouseOver()) {
-                FeatureToggle toggle = toggles.get(b.id);
-                drawHoveringText(toggle.desc, mouseX, mouseY);
-            }
-        }
+    public void updateScreen() {
+        caretTimer++;
     }
 
     @Override
     public boolean doesGuiPauseGame() {
         return false;
+    }
+
+    private void rebuildRows() {
+        rows.clear();
+
+        if (!searchQuery.isEmpty()) {
+            for (Feature f : FeatureRegistry.search(searchQuery)) rows.add(new ToggleRow(f));
+            clampScroll();
+            return;
+        }
+
+        if (selectedCategory == Feature.Category.TOOLS) {
+            buildToolsRows();
+            clampScroll();
+            return;
+        }
+
+        for (Feature f : FeatureRegistry.byCategory(selectedCategory)) rows.add(new ToggleRow(f));
+        for (FeatureRegistry.Setting s : FeatureRegistry.settingsFor(selectedCategory)) rows.add(new SettingRow(s));
+        clampScroll();
+    }
+
+    private void buildToolsRows() {
+        rows.add(new ActionRow("Reforge Target", "Quality that Auto Reforge stops rolling at.",
+                FeatureConfig.targetQuality, () -> {
+            String[] presets = AutoReforgerHandler.QUALITY_PRESETS;
+            int next = 0;
+            for (int i = 0; i < presets.length; i++) {
+                if (presets[i].equals(FeatureConfig.targetQuality)) {
+                    next = (i + 1) % presets.length;
+                    break;
+                }
+            }
+            FeatureConfig.targetQuality = presets[next];
+            FeatureConfig.saveConfig();
+            rebuildRows();
+        }));
+
+        rows.add(new ActionRow("Level Up! 2 Target Level",
+                "Level applied to every skill. Left click +1, right click -1.",
+                String.valueOf(FeatureConfig.customLevelTarget), () -> {
+            FeatureConfig.customLevelTarget = Math.min(1000, FeatureConfig.customLevelTarget + 1);
+            FeatureConfig.saveConfig();
+            rebuildRows();
+        }) {
+            @Override void click(int button) {
+                if (button == 1) {
+                    FeatureConfig.customLevelTarget = Math.max(0, FeatureConfig.customLevelTarget - 1);
+                    FeatureConfig.saveConfig();
+                    rebuildRows();
+                } else {
+                    super.click(button);
+                }
+            }
+        });
+
+        rows.add(new ActionRow("Apply Level To All Skills",
+                "Sends the Level Up! 2 skill packet with 0 spent points.",
+                "run", () -> LevelUpExploitHandler.setAllSkillsLevel(FeatureConfig.customLevelTarget)));
+
+        rows.add(new ActionRow("Apply Safe Preset",
+                "Level Up! 2 preset that skips the skills known to break movement.",
+                "run", LevelUpExploitHandler::applySafePreset));
+
+        rows.add(new ActionRow("Skill Tree Editor",
+                "Per-skill Level Up! 2 editor.",
+                "open", () -> this.mc.displayGuiScreen(new GuiLevelUpConfig(this))));
+
+        rows.add(new ActionRow("Save Configuration",
+                "Writes config/rlutility_features.cfg immediately.",
+                "save", FeatureConfig::saveConfig));
+    }
+
+    private void clampScroll() {
+        int maxScroll = Math.max(0, rows.size() * (ROW_H + ROW_GAP) - contentHeight());
+        if (scroll > maxScroll) scroll = maxScroll;
+        if (scroll < 0) scroll = 0;
+    }
+
+    private int contentHeight() {
+        return PANEL_H - HEADER_H - FOOTER_H - 8;
+    }
+
+    // ------------------------------------------------------------------ render
+    @Override
+    public void drawScreen(int mouseX, int mouseY, float partialTicks) {
+        drawDefaultBackground();
+        hoveredDesc = null;
+
+        int x = panelX, y = panelY;
+
+        // drop shadow + body
+        drawRect(x - 2, y - 2, x + PANEL_W + 2, y + PANEL_H + 2, COL_SHADOW);
+        drawRect(x, y, x + PANEL_W, y + PANEL_H, COL_PANEL);
+        drawRect(x, y, x + PANEL_W, y + HEADER_H, COL_HEADER);
+        drawRect(x, y + HEADER_H - 1, x + PANEL_W, y + HEADER_H, COL_ACCENT);
+        drawRect(x, y + HEADER_H, x + RAIL_W, y + PANEL_H - FOOTER_H, COL_RAIL);
+        drawRect(x + RAIL_W, y + HEADER_H, x + RAIL_W + 1, y + PANEL_H - FOOTER_H, COL_LINE);
+        drawRect(x, y + PANEL_H - FOOTER_H, x + PANEL_W, y + PANEL_H - FOOTER_H + 1, COL_LINE);
+
+        drawHeader(x, y, mouseX, mouseY);
+        drawRail(x, y, mouseX, mouseY);
+        drawContent(x, y, mouseX, mouseY);
+        drawFooter(x, y);
+
+        super.drawScreen(mouseX, mouseY, partialTicks);
+    }
+
+    private void drawHeader(int x, int y, int mouseX, int mouseY) {
+        drawText("\u00a7lRLUtility", x + 10, y + 7, COL_ACCENT);
+        drawText("v" + RLUtilityMod.VERSION + "  \u00b7  RLCraft 2.9.3", x + 10 + fontRenderer.getStringWidth("RLUtility") + 8, y + 7, COL_DIM);
+
+        // search field
+        int sx = x + PANEL_W - 168;
+        int sy = y + 6;
+        boolean hover = inside(mouseX, mouseY, sx, sy, 140, 18);
+        drawRect(sx, sy, sx + 140, sy + 18, hover ? 0x33FFFFFF : 0x22FFFFFF);
+        String shown = searchQuery.isEmpty() ? "\u00a78Search modules..." : searchQuery;
+        drawText(shown, sx + 6, sy + 5, searchQuery.isEmpty() ? COL_DIM : COL_TEXT);
+        if (!searchQuery.isEmpty() && (caretTimer / 6) % 2 == 0) {
+            int cx = sx + 6 + fontRenderer.getStringWidth(searchQuery);
+            drawRect(cx + 1, sy + 4, cx + 2, sy + 14, COL_ACCENT);
+        }
+
+        // close button
+        int cxb = x + PANEL_W - 22;
+        boolean hoverClose = inside(mouseX, mouseY, cxb, y + 6, 16, 18);
+        drawRect(cxb, y + 6, cxb + 16, y + 24, hoverClose ? 0x44F87171 : 0x00000000);
+        drawText("\u2715", cxb + 5, y + 11, hoverClose ? 0xFFF87171 : COL_DIM);
+    }
+
+    private void drawRail(int x, int y, int mouseX, int mouseY) {
+        Feature.Category[] cats = Feature.Category.values();
+        int ry = y + HEADER_H + 6;
+
+        for (Feature.Category c : cats) {
+            boolean selected = (c == selectedCategory) && searchQuery.isEmpty();
+            boolean hover = inside(mouseX, mouseY, x + 4, ry, RAIL_W - 8, 22);
+
+            if (selected) {
+                drawRect(x + 4, ry, x + RAIL_W - 4, ry + 22, COL_SEL);
+                drawRect(x + 4, ry, x + 6, ry + 22, COL_ACCENT);
+            } else if (hover) {
+                drawRect(x + 4, ry, x + RAIL_W - 4, ry + 22, COL_ROW_HOVER);
+            }
+
+            int enabled = 0;
+            List<Feature> inCat = FeatureRegistry.byCategory(c);
+            for (Feature f : inCat) if (f.isEnabled()) enabled++;
+
+            drawText(c.title, x + 13, ry + 7, selected ? COL_ACCENT : COL_TEXT);
+            if (!inCat.isEmpty()) {
+                String count = enabled + "/" + inCat.size();
+                drawText("\u00a78" + count, x + RAIL_W - 10 - fontRenderer.getStringWidth(count), ry + 7, COL_DIM);
+            }
+            ry += 24;
+        }
+    }
+
+    private void drawContent(int x, int y, int mouseX, int mouseY) {
+        int cx = x + RAIL_W + 5;
+        int cw = PANEL_W - RAIL_W - 11;
+        int top = y + HEADER_H + 5;
+        int bottom = y + PANEL_H - FOOTER_H - 3;
+
+        if (rows.isEmpty()) {
+            drawText("\u00a78No modules match \"" + searchQuery + "\"", cx + 8, top + 10, COL_DIM);
+            return;
+        }
+
+        for (int i = 0; i < rows.size(); i++) {
+            int ry = top + i * (ROW_H + ROW_GAP) - scroll;
+            if (ry + ROW_H < top || ry > bottom) continue; // simple culling, no scissor needed
+
+            Row row = rows.get(i);
+            boolean hover = inside(mouseX, mouseY, cx, ry, cw, ROW_H)
+                    && mouseY >= top && mouseY <= bottom;
+
+            drawRect(cx, ry, cx + cw, ry + ROW_H, hover ? COL_ROW_HOVER : COL_ROW);
+            row.render(this, cx, ry, cw);
+            if (hover) hoveredDesc = row.desc;
+        }
+
+        // scrollbar
+        int totalH = rows.size() * (ROW_H + ROW_GAP);
+        int viewH = bottom - top;
+        if (totalH > viewH) {
+            int barH = Math.max(16, (int) ((float) viewH / totalH * viewH));
+            int barY = top + (int) ((float) scroll / (totalH - viewH) * (viewH - barH));
+            drawRect(x + PANEL_W - 5, top, x + PANEL_W - 3, bottom, 0x22FFFFFF);
+            drawRect(x + PANEL_W - 5, barY, x + PANEL_W - 3, barY + barH, COL_ACCENT);
+        }
+    }
+
+    private void drawFooter(int x, int y) {
+        int fy = y + PANEL_H - FOOTER_H + 4;
+        if (hoveredDesc != null) {
+            String text = fontRenderer.trimStringToWidth(hoveredDesc, PANEL_W - 20);
+            drawText(text, x + 10, fy + 5, COL_DIM);
+        } else {
+            int lx = x + 10;
+            lx = drawLegend("SRV", Feature.Compat.SERVER.color, "server-side", lx, fy + 5);
+            lx = drawLegend("MOD", Feature.Compat.MODDED.color, "mod channel", lx, fy + 5);
+            lx = drawLegend("CLI", Feature.Compat.LOCAL.color, "client only", lx, fy + 5);
+            drawLegend("!!", Feature.Compat.RISKY.color, "flaggable", lx, fy + 5);
+        }
+    }
+
+    private int drawLegend(String badge, int color, String text, int x, int y) {
+        drawText(badge, x, y, color);
+        int w = fontRenderer.getStringWidth(badge) + 3;
+        drawText("\u00a78" + text, x + w, y, COL_DIM);
+        return x + w + fontRenderer.getStringWidth(text) + 10;
+    }
+
+    void drawText(String text, int x, int y, int color) {
+        GlStateManager.enableAlpha();
+        fontRenderer.drawStringWithShadow(text, x, y, color);
+    }
+
+    private boolean inside(int mx, int my, int x, int y, int w, int h) {
+        return mx >= x && mx <= x + w && my >= y && my <= y + h;
+    }
+
+    // ------------------------------------------------------------------- input
+    @Override
+    protected void mouseClicked(int mouseX, int mouseY, int mouseButton) throws IOException {
+        super.mouseClicked(mouseX, mouseY, mouseButton);
+
+        int x = panelX, y = panelY;
+
+        // close
+        if (inside(mouseX, mouseY, x + PANEL_W - 22, y + 6, 16, 18)) {
+            closeMenu();
+            return;
+        }
+
+        // clear search by clicking the field with right mouse
+        if (inside(mouseX, mouseY, x + PANEL_W - 168, y + 6, 140, 18) && mouseButton == 1) {
+            searchQuery = "";
+            scroll = 0;
+            rebuildRows();
+            return;
+        }
+
+        // category rail
+        int ry = y + HEADER_H + 6;
+        for (Feature.Category c : Feature.Category.values()) {
+            if (inside(mouseX, mouseY, x + 4, ry, RAIL_W - 8, 22)) {
+                selectedCategory = c;
+                searchQuery = "";
+                scroll = 0;
+                rebuildRows();
+                return;
+            }
+            ry += 24;
+        }
+
+        // rows
+        int cx = x + RAIL_W + 5;
+        int cw = PANEL_W - RAIL_W - 11;
+        int top = y + HEADER_H + 5;
+        int bottom = y + PANEL_H - FOOTER_H - 3;
+        if (mouseY < top || mouseY > bottom) return;
+
+        for (int i = 0; i < rows.size(); i++) {
+            int rowY = top + i * (ROW_H + ROW_GAP) - scroll;
+            if (rowY + ROW_H < top || rowY > bottom) continue;
+            if (inside(mouseX, mouseY, cx, rowY, cw, ROW_H)) {
+                rows.get(i).click(mouseButton);
+                return;
+            }
+        }
+    }
+
+    @Override
+    public void handleMouseInput() throws IOException {
+        super.handleMouseInput();
+        int wheel = Mouse.getEventDWheel();
+        if (wheel == 0) return;
+        scroll += (wheel > 0 ? -1 : 1) * (ROW_H + ROW_GAP) * 2;
+        clampScroll();
+    }
+
+    @Override
+    protected void keyTyped(char typedChar, int keyCode) throws IOException {
+        if (keyCode == Keyboard.KEY_ESCAPE) {
+            if (!searchQuery.isEmpty()) {
+                searchQuery = "";
+                scroll = 0;
+                rebuildRows();
+            } else {
+                closeMenu();
+            }
+            return;
+        }
+        if (keyCode == Keyboard.KEY_BACK) {
+            if (!searchQuery.isEmpty()) {
+                searchQuery = searchQuery.substring(0, searchQuery.length() - 1);
+                scroll = 0;
+                rebuildRows();
+            }
+            return;
+        }
+        if (ChatAllowedCharacters.isAllowedCharacter(typedChar) && searchQuery.length() < 24) {
+            searchQuery += typedChar;
+            scroll = 0;
+            rebuildRows();
+        }
+    }
+
+    private void closeMenu() {
+        FeatureConfig.saveConfig();
+        this.mc.displayGuiScreen(null);
+        if (this.mc.currentScreen == null) this.mc.setIngameFocus();
+    }
+
+    @Override
+    public void onGuiClosed() {
+        FeatureConfig.saveConfig();
     }
 }
