@@ -1,5 +1,10 @@
 package com.rlutility.modules;
 
+import com.mujmajnkraft.bettersurvival.capabilities.nunchakucombo.INunchakuCombo;
+import com.mujmajnkraft.bettersurvival.capabilities.nunchakucombo.NunchakuComboProvider;
+import com.mujmajnkraft.bettersurvival.integration.RLCombatCompat;
+import com.mujmajnkraft.bettersurvival.packet.BetterSurvivalPacketHandler;
+import com.mujmajnkraft.bettersurvival.packet.MessageNunchakuSpinClient;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.entity.Entity;
@@ -59,23 +64,17 @@ public class AttackMethodTester {
                 (p, t) -> Minecraft.getMinecraft().playerController.attackEntity(p, t)));
 
         METHODS.add(new Method0("RLCombatCompat.attackEntityFromClient", "rlcombat",
-                (p, t) -> com.mujmajnkraft.bettersurvival.integration.RLCombatCompat
-                        .attackEntityFromClient(new RayTraceResult(t), p)));
+                (p, t) -> RLCombatCompat.attackEntityFromClient(new RayTraceResult(t), p)));
 
         METHODS.add(new Method0("RLCombatCompat + nunchaku spin first", "rlcombat", (p, t) -> {
             // The working path also enabled the spin capability first; test that combination.
             try {
-                Object combo = p.getCapability(
-                        com.mujmajnkraft.bettersurvival.capabilities.nunchakucombo
-                                .NunchakuComboProvider.NUNCHAKUCOMBO_CAP, null);
+                INunchakuCombo combo = p.getCapability(NunchakuComboProvider.NUNCHAKUCOMBO_CAP, null);
                 if (combo != null) {
-                    com.mujmajnkraft.bettersurvival.packet.BetterSurvivalPacketHandler.NETWORK
-                            .sendToServer(new com.mujmajnkraft.bettersurvival.packet
-                                    .MessageNunchakuSpinClient(true));
+                    BetterSurvivalPacketHandler.NETWORK.sendToServer(new MessageNunchakuSpinClient(true));
                 }
             } catch (Throwable ignored) {}
-            com.mujmajnkraft.bettersurvival.integration.RLCombatCompat
-                    .attackEntityFromClient(new RayTraceResult(t), p);
+            RLCombatCompat.attackEntityFromClient(new RayTraceResult(t), p);
         }));
 
         METHODS.add(new Method0("RLCombat PacketMainhandAttack", "rlcombat", (p, t) -> {

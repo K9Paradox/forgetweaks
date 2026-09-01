@@ -1,11 +1,14 @@
 package com.rlutility.modules;
 
+import com.mujmajnkraft.bettersurvival.integration.RLCombatCompat;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.entity.Entity;
 import net.minecraft.util.math.RayTraceResult;
 import net.minecraft.util.text.TextComponentString;
+import net.minecraft.util.EnumHand;
 import net.minecraftforge.client.event.MouseEvent;
+import net.minecraftforge.fml.common.Loader;
 import net.minecraftforge.fml.common.eventhandler.EventPriority;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
@@ -105,10 +108,9 @@ public class WeaponLockBypassHandler {
         StringBuilder how = new StringBuilder();
 
         // Primary: the exact call the working nunchaku path uses.
-        if (FeatureConfig.bypassUseRlcombatHook && net.minecraftforge.fml.common.Loader.isModLoaded("rlcombat")) {
+        if (FeatureConfig.bypassUseRlcombatHook && Loader.isModLoaded("rlcombat")) {
             try {
-                com.mujmajnkraft.bettersurvival.integration.RLCombatCompat
-                        .attackEntityFromClient(new RayTraceResult(target), player);
+                RLCombatCompat.attackEntityFromClient(new RayTraceResult(target), player);
                 how.append("rlcombat-hook ");
                 any = true;
             } catch (Throwable t) {
@@ -136,7 +138,7 @@ public class WeaponLockBypassHandler {
             }
         }
 
-        player.swingArm(net.minecraft.util.EnumHand.MAIN_HAND);
+        player.swingArm(EnumHand.MAIN_HAND);
         attacks++;
         lastResult = how.toString().trim() + " via " + reason;
     }
