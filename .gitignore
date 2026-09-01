@@ -1,0 +1,23 @@
+# Gradle build files and cache
+.gradle/
+build/
+run/
+
+# IDE / Editor files
+.idea/
+*.iml
+.project
+.classpath
+.settings/
+.vscode/
+bin/
+out/
+
+# Temporary / Scratch files
+javac_args.txt
+javac_run_args.txt
+prism_jars.txt
+*.log
+*.tmp
+.DS_Store
+Thumbs.db

@@ -1,0 +1,16 @@
+[
+  {
+    "modid": "rlutility",
+    "name": "RLUtility Mod",
+    "description": "Utility and enhancement mod for RLCraft 1.12.2.",
+    "version": "${version}",
+    "mcversion": "${mcversion}",
+    "url": "",
+    "updateUrl": "",
+    "authorList": ["Developer"],
+    "credits": "",
+    "logoFile": "",
+    "screenshots": [],
+    "dependencies": []
+  }
+]
