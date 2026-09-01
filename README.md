@@ -91,6 +91,43 @@ editor and a manual config save.
 
 ---
 
+## Building
+
+### Windows (one command)
+
+```bat
+git clone -b arena/01a05a75-forgetweaks https://github.com/K9Paradox/forgetweaks.git && cd forgetweaks && build.bat
+```
+
+`build.bat` finds a JDK 8, downloads a private copy of Gradle 4.10.3 into
+`%USERPROFILE%\.rlutility-build` and auto-detects your RLCraft mods folder. If it guesses wrong,
+pass the folder explicitly:
+
+```bat
+build.bat "C:\Users\K9\AppData\Roaming\PrismLauncher\instances\RLCraft\minecraft\mods"
+```
+
+Output: `build\libs\rlutility-1.4.0.jar` — drop it into that same mods folder.
+
+**Requirements.** ForgeGradle 2.3 only runs on **JDK 8** (Java 9+ will fail with cryptic bytecode
+errors) and Gradle 4.x. The script handles Gradle; if you have no JDK 8 it will tell you and stop:
+
+```bat
+winget install EclipseAdoptium.Temurin.8.JDK
+```
+
+The first build decompiles Minecraft and takes 5–15 minutes. Later builds take seconds.
+
+### Manual / other platforms
+
+```bash
+gradle build -x test -PrlcraftMods="/path/to/RLCraft/minecraft/mods"
+```
+
+The RLCraft mod jars are compile-time only dependencies (this mod links against Level Up! 2,
+Reskillable, Locks, First Aid and others). You can also drop them in `./libs` instead of passing the
+flag. `gradle checkRlcraftDeps` lists which ones are missing.
+
 ## Level Up! 2 exploit — correctness notes
 
 Verified against [BeetoGuy/LevelUp2](https://github.com/BeetoGuy/LevelUp2) rather than guessed at.
