@@ -119,6 +119,10 @@ public final class FeatureConfig {
     /** Ticks between pin guesses. 1 is fine; raise it if a server throttles packets. */
     public static int locksSolveDelay = 1;
 
+    /** Overworld seed used to derive every Locks combination. Set via /rlu lockseed. */
+    public static long locksWorldSeed = 0L;
+    public static boolean locksSeedKnown = false;
+
     /** Show the exact enchantments each table slot will give, derived from the synced xpSeed. */
     public static boolean enchantPreview = true;
 
@@ -150,6 +154,7 @@ public final class FeatureConfig {
     public static void init(File configDir) {
         configFile = new File(configDir, "rlutility_features.cfg");
         loadConfig();
+        LockSeedSolver.init(configDir);
     }
 
     private static File getConfigFile() {

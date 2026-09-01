@@ -28,7 +28,7 @@ public class CommandRLUtility extends CommandBase {
 
     @Override
     public String getUsage(ICommandSender sender) {
-        return "/rlu | diag | level <n> | tree <t> <n> | safe | max | class <t> | revert | xray [block|here] | unlock | buy <skill> [n]";
+        return "/rlu | diag | lockseed <seed> | level <n> | tree <t> <n> | safe | max | class <t> | revert | xray [block|here] | unlock | buy <skill> [n]";
     }
 
     @Override
@@ -131,6 +131,42 @@ public class CommandRLUtility extends CommandBase {
                         FeatureConfig.saveConfig();
                         com.rlutility.modules.XRayHandler.forceRescan();
                         say(mc, "\u00a7fXRay " + (FeatureConfig.xrayEnabled ? "\u00a7aENABLED" : "\u00a7cDISABLED"));
+                    }
+                });
+                return;
+            } else if (sub.equals("lockseed")) {
+                // /rlu lockseed <seed|status|clear>
+                final String arg = args.length > 1 ? args[1] : "status";
+                mc.addScheduledTask(() -> {
+                    if (arg.equalsIgnoreCase("clear")) {
+                        com.rlutility.modules.LockSeedSolver.clearSeed();
+                        say(mc, "\u00a7aLock seed cleared.");
+                        return;
+                    }
+                    if (arg.equalsIgnoreCase("status")) {
+                        say(mc, "\u00a76Lock seed: " + (com.rlutility.modules.LockSeedSolver.hasSeed()
+                                ? "\u00a7a" + com.rlutility.modules.LockSeedSolver.getSeed()
+                                : "\u00a77unknown"));
+                        say(mc, "\u00a77Cracked locks on file (used to verify a seed): \u00a7f"
+                                + com.rlutility.modules.LockSeedSolver.knownCount());
+                        say(mc, "\u00a78Combinations are a pure function of (lock id, length, world seed),");
+                        say(mc, "\u00a78so the right seed solves every lock on the server instantly.");
+                        return;
+                    }
+                    long seed;
+                    try {
+                        seed = Long.parseLong(arg.trim());
+                    } catch (NumberFormatException e) {
+                        // Minecraft treats a non-numeric seed as its string hash.
+                        seed = arg.hashCode();
+                        say(mc, "\u00a77Non-numeric seed - using String.hashCode() = " + seed);
+                    }
+                    if (com.rlutility.modules.LockSeedSolver.trySeed(seed)) {
+                        say(mc, "\u00a7aSeed accepted" + (com.rlutility.modules.LockSeedSolver.knownCount() > 0
+                                ? " and verified against " + com.rlutility.modules.LockSeedSolver.knownCount()
+                                  + " cracked lock(s)." : " (no cracked locks yet to verify against)."));
+                    } else {
+                        say(mc, "\u00a7cThat seed does not reproduce the locks already cracked - rejected.");
                     }
                 });
                 return;
