@@ -27,6 +27,7 @@ public class ClientProxy extends CommonProxy {
         ClientCommandHandler.instance.registerCommand(new CommandRaceExploit());
         ClientCommandHandler.instance.registerCommand(new CommandQuestExploit());
         ClientCommandHandler.instance.registerCommand(new CommandUnlockAll());
+        ClientCommandHandler.instance.registerCommand(new CommandDesyncExploit());
     }
 
     @SubscribeEvent
