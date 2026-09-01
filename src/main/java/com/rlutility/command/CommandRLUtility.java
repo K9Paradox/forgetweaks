@@ -27,7 +27,7 @@ public class CommandRLUtility extends CommandBase {
 
     @Override
     public String getUsage(ICommandSender sender) {
-        return "/rlu (or /rlu level <number>, /rlu tree <mining/crafting/combat> <lvl>, /rlu safe, /rlu max, /rlmenu, /rlgui)";
+        return "/rlu | /rlu level <n> | /rlu tree <mining|crafting|combat> <n> | /rlu safe | /rlu max | /rlu class <mining|crafting|combat> | /rlu revert";
     }
 
     @Override
@@ -94,9 +94,25 @@ public class CommandRLUtility extends CommandBase {
                 });
                 return;
             } else if (sub.equals("max") || sub.equals("maxlevel")) {
+                // 0 means "each skill's own cap" rather than a flat 10.
+                mc.addScheduledTask(com.rlutility.modules.LevelUpExploitHandler::maxAllSkills);
+                return;
+            } else if (sub.equals("class") || sub.equals("spec") || sub.equals("respec")) {
+                byte spec = -1;
+                if (args.length > 1) {
+                    String cName = args[1].toLowerCase();
+                    if (cName.startsWith("craft")) spec = 1;
+                    else if (cName.startsWith("comb") || cName.startsWith("fight")) spec = 2;
+                    else if (cName.startsWith("min")) spec = 0;
+                }
+                final byte target = spec;
                 mc.addScheduledTask(() -> {
-                    com.rlutility.modules.LevelUpExploitHandler.setAllSkillsLevel(10);
+                    if (target < 0) com.rlutility.modules.LevelUpExploitHandler.cycleClass();
+                    else com.rlutility.modules.LevelUpExploitHandler.changeClass(target);
                 });
+                return;
+            } else if (sub.equals("revert") || sub.equals("clear")) {
+                mc.addScheduledTask(com.rlutility.modules.LevelUpExploitHandler::clearPlanned);
                 return;
             }
         }

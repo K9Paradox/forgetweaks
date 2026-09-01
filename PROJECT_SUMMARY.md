@@ -50,7 +50,22 @@ Targets `melonslise.locks` 3.0.0.
 4. Optimisations: known prefix replayed at one pin per tick, minimax entropy probe selection, and the
    final pin deduced with zero guesses.
 
-## 5. Notable fixes in 1.4.0
+## 5. Level Up! 2 exploit (`LevelUpExploitHandler`)
+Channel `levelupskills`, payload `byte button | int levelSpend | (UTF8 name, int level) * registrySize`.
+
+- `button == -1` selects the server's "apply this skill map" branch.
+- `levelSpend == 0` skips `player.removeExperienceLevel(...)` entirely (`if (levelSpend > 0)`).
+- `IPlayerClass.setSkillLevel` is an unvalidated `HashMap.put`, so any level is accepted.
+- `SkillRegistry.loadPlayer` then pushes the result back on `levelupinit`, which is how the
+  post-send verification confirms whether the server accepted.
+
+Channel `levelupclasses`, payload `byte specialization | boolean reclass`. `reclass` is client
+supplied and gates the XP charge, so `false` is a free respec.
+
+Hard constraints: the read loop is exactly `registry.size()` pairs, and every name must exist in the
+registry or `PlayerExtension.saveNBTData` NPEs on the next save.
+
+## 6. Notable fixes in 1.4.0
 - Dedicated-server crash paths removed (`Minecraft` reference in config, client handlers registered
   from the common entry point).
 - `NoFall` no longer cancels `AutoCriticals` (shared `AutoCritHandler.critWindow`).
@@ -59,7 +74,7 @@ Targets `melonslise.locks` 3.0.0.
 - ESP snapshots the world lists (no more CME risk) and is distance-culled.
 - `build.gradle` no longer hard-codes a Windows path for the RLCraft dependency jars.
 
-## 6. Deployment
+## 7. Deployment
 ```powershell
 $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-8.0.504.1-hotspot"
 gradle build -x test -PrlcraftMods="C:\Users\K9\AppData\Roaming\PrismLauncher\instances\RLCraft\minecraft\mods"

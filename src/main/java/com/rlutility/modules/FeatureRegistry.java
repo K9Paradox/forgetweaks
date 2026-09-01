@@ -174,6 +174,14 @@ public final class FeatureRegistry {
                 () -> FeatureConfig.autoLootDelay + "t",
                 d -> FeatureConfig.autoLootDelay = (int) clamp(FeatureConfig.autoLootDelay + d, 0, 10));
 
+        // -------------------------------------------------------------- TOOLS
+        f("LU2: Preserve Class", "Keep exactly one Level Up! class marker set. Off = all three XP bonuses at once.",
+                Category.TOOLS, Compat.MODDED,
+                () -> FeatureConfig.levelUpPreserveClass, v -> FeatureConfig.levelUpPreserveClass = v);
+        f("LU2: Clamp To Max", "Never send a skill level above its own cap. Overshooting can throw server-side.",
+                Category.TOOLS, Compat.MODDED,
+                () -> FeatureConfig.levelUpClampToMax, v -> FeatureConfig.levelUpClampToMax = v);
+
         // ------------------------------------------------------------ VISUALS
         f("Chest ESP", "Outlines chests, ender chests and shulkers through walls.",
                 Category.VISUALS, Compat.LOCAL,
@@ -255,7 +263,7 @@ public final class FeatureRegistry {
     public static List<Feature> activeForHud() {
         List<Feature> out = new ArrayList<>();
         for (Feature f : FEATURES) {
-            if (f.category == Category.HUD) continue;
+            if (f.category == Category.HUD || f.category == Category.TOOLS) continue;
             if (f.name.startsWith("KA: ") || f.name.startsWith("Auto Loot: ")) continue;
             if (f.isEnabled()) out.add(f);
         }

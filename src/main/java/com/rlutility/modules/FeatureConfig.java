@@ -65,6 +65,8 @@ public final class FeatureConfig {
     public static boolean autoLoot = false;
     public static int autoLootDelay = 2;
     public static boolean autoLootCloseWhenDone = true;
+    public static boolean levelUpPreserveClass = true;
+    public static boolean levelUpClampToMax = true;
 
     // --------------------------------------------------------------- Visuals
     public static boolean espChests = true;

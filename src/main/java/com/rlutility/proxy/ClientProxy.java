@@ -23,6 +23,7 @@ import com.rlutility.modules.FirstAidHelper;
 import com.rlutility.modules.ItemMagnetHandler;
 import com.rlutility.modules.JesusHandler;
 import com.rlutility.modules.KillAuraHandler;
+import com.rlutility.modules.LevelUpExploitHandler;
 import com.rlutility.modules.LocksHelper;
 import com.rlutility.modules.MovementEventHandler;
 import com.rlutility.modules.NoFallHandler;
@@ -106,7 +107,12 @@ public class ClientProxy extends CommonProxy {
         if (event.phase != TickEvent.Phase.END) return;
 
         Minecraft mc = Minecraft.getMinecraft();
-        if (mc.world == null || mc.player == null || mc.currentScreen != null) return;
+        if (mc.world == null || mc.player == null) return;
+
+        // Reports whether the server actually accepted the last Level Up! 2 skill packet.
+        LevelUpExploitHandler.tick();
+
+        if (mc.currentScreen != null) return;
 
         if (openGuiKey != null && openGuiKey.isPressed()) {
             mc.displayGuiScreen(new GuiUtilityMenu());

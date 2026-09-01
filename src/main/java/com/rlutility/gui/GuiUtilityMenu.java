@@ -185,6 +185,19 @@ public class GuiUtilityMenu extends GuiScreen {
     }
 
     private void buildToolsRows() {
+        for (Feature f : FeatureRegistry.byCategory(Feature.Category.TOOLS)) rows.add(new ToggleRow(f));
+
+        byte spec = LevelUpExploitHandler.currentSpecialization();
+        rows.add(new ActionRow("Level Up! 2 Specialization",
+                "Free class change - the server only charges the reclass cost when the client asks it to. "
+                        + "Left click cycles Mining / Crafting / Combat.",
+                LevelUpExploitHandler.className(spec), LevelUpExploitHandler::cycleClass) {
+            @Override void click(int button) {
+                super.click(button);
+                rebuildRows();
+            }
+        });
+
         rows.add(new ActionRow("Reforge Target", "Quality that Auto Reforge stops rolling at.",
                 FeatureConfig.targetQuality, () -> {
             String[] presets = AutoReforgerHandler.QUALITY_PRESETS;
@@ -201,7 +214,7 @@ public class GuiUtilityMenu extends GuiScreen {
         }));
 
         rows.add(new ActionRow("Level Up! 2 Target Level",
-                "Level applied to every skill. Left click +1, right click -1.",
+                "Level applied to every skill by the button below. 0 means each skill's own cap. Left click +1, right click -1.",
                 String.valueOf(FeatureConfig.customLevelTarget), () -> {
             FeatureConfig.customLevelTarget = Math.min(1000, FeatureConfig.customLevelTarget + 1);
             FeatureConfig.saveConfig();
@@ -219,7 +232,7 @@ public class GuiUtilityMenu extends GuiScreen {
         });
 
         rows.add(new ActionRow("Apply Level To All Skills",
-                "Sends the Level Up! 2 skill packet with 0 spent points.",
+                "Sends the Level Up! 2 skill packet with button=-1 and levelSpend=0, so the server charges nothing.",
                 "run", () -> LevelUpExploitHandler.setAllSkillsLevel(FeatureConfig.customLevelTarget)));
 
         rows.add(new ActionRow("Apply Safe Preset",

@@ -58,6 +58,13 @@ Commands: `/rlu`, `/rlmenu`, `/rlgui`, `/rlu level <n>`, `/rlu tree <mining|craf
 - **Creative Flight** `!!` — vanilla servers kick for this.
 
 ### Exploits
+- **Level Up! 2 skill exploit** `MOD` — writes any skill level for free. The server handler
+  (`SkillPacketHandler#handlePacket`) takes a client-supplied `levelSpend` and calls
+  `properties.setSkillLevel(name, value)` — a raw `HashMap.put` with **no cost check and no level
+  validation** — then syncs the result back to you. We send `button = -1`, `levelSpend = 0`.
+  Includes a **free class change** (`levelupclasses` only charges `reclassCost` when the *client*
+  asks it to, so we send `reclass = false`) and a post-send verification that tells you whether the
+  server actually accepted.
 - **Auto Lockpick** `MOD` — audio-pitch + minimax-entropy solver for `melonslise.locks` 3.0.0.
   Handles 11-pin master locks, replays known prefixes at one pin per tick, and deduces the final pin
   with zero guesses.
@@ -83,6 +90,31 @@ Reforge target cycle, Level Up! 2 target level, "apply to all skills", safe pres
 editor and a manual config save.
 
 ---
+
+## Level Up! 2 exploit — correctness notes
+
+Verified against [BeetoGuy/LevelUp2](https://github.com/BeetoGuy/LevelUp2) rather than guessed at.
+Three constraints the previous implementation violated:
+
+1. **The server's read loop is fixed length.** It reads exactly
+   `SkillRegistry.getSkillRegistry().size()` name/int pairs — not "until the buffer runs out". We now
+   iterate the registry list itself so the count and order always line up.
+2. **Unknown skill names corrupt your save.** `setSkillLevel` is a raw `map.put`, so a bogus name is
+   inserted happily — and then `PlayerExtension.saveNBTData` walks the key set and calls
+   `skill.getSkillType()` on the `null` registry lookup, NPE-ing while saving your player data. Only
+   registry-backed names are ever transmitted now.
+3. **Unconfigured skills defaulted to MAX.** The old `getOrDefault(name, skill.getMaxLevel())` meant
+   editing one skill silently maxed every other one — so `/skill mining_speed 5` maxed your whole
+   tree. The default is now your *current* level, which makes the editor and the `/skill` command
+   behave the way they read.
+
+Two further footguns are now options (Tools tab):
+
+- **Keep Class** (default on) — `levelup:mining_bonus` / `craft_bonus` / `combat_bonus` double as the
+  specialization flag, so "max everything" used to set all three at once, a state the mod can never
+  produce. Turn it off deliberately if you want all three XP bonuses simultaneously.
+- **Cap** (default on) — several skills index tables by level, so overshooting `getMaxLevel()` can
+  throw server-side.
 
 ## What changed in 1.4.0
 
