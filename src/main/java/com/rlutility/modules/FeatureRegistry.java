@@ -25,6 +25,12 @@ public final class FeatureRegistry {
         public final Category category;
         private final Supplier<String> valueSupplier;
         private final java.util.function.IntConsumer adjuster;
+        /** Present only on numeric settings; enables typing a value directly. */
+        private java.util.function.DoubleSupplier rawGet;
+        private java.util.function.DoubleConsumer rawSet;
+        private boolean integral;
+        private double hardMin = -Double.MAX_VALUE;
+        private double hardMax = Double.MAX_VALUE;
 
         public Setting(String name, String desc, Category category,
                        Supplier<String> value, java.util.function.IntConsumer adjust) {
@@ -33,6 +39,28 @@ public final class FeatureRegistry {
             this.category = category;
             this.valueSupplier = value;
             this.adjuster = adjust;
+        }
+
+        /** True when this setting accepts a typed value. */
+        public boolean isTypable() {
+            return rawSet != null;
+        }
+
+        public boolean isIntegral() {
+            return integral;
+        }
+
+        public double rawValue() {
+            return rawGet == null ? 0.0D : rawGet.getAsDouble();
+        }
+
+        /** Applies a typed value, clamped only by the safety limits, not the click step range. */
+        public void setRaw(double v) {
+            if (rawSet == null) return;
+            if (v < hardMin) v = hardMin;
+            if (v > hardMax) v = hardMax;
+            rawSet.accept(integral ? Math.rint(v) : v);
+            FeatureConfig.saveConfig();
         }
 
         public String value() {
@@ -54,6 +82,39 @@ public final class FeatureRegistry {
     private static void s(String name, String desc, Category c,
                           Supplier<String> value, java.util.function.IntConsumer adjust) {
         SETTINGS.add(new Setting(name, desc, c, value, adjust));
+    }
+
+    /**
+     * Declares a numeric setting that can be clicked to step OR typed into directly.
+     *
+     * <p>{@code step}, {@code softMin} and {@code softMax} bound click-stepping so the arrows stay
+     * useful, while {@code hardMax} bounds what may be typed. Those are deliberately separate: the
+     * old settings clamped everything to the click range, so an ESP range could never exceed 192
+     * however you asked for it.</p>
+     */
+    private static void num(String name, String desc, Category c, String unit,
+                            java.util.function.DoubleSupplier get,
+                            java.util.function.DoubleConsumer set,
+                            double step, double softMin, double softMax,
+                            double hardMin, double hardMax, boolean integral) {
+        Setting setting = new Setting(name, desc, c,
+                () -> integral
+                        ? ((long) get.getAsDouble()) + unit
+                        : String.format("%.2f", get.getAsDouble()) + unit,
+                d -> {
+                    double next = get.getAsDouble() + step * d;
+                    // Stepping stays inside the soft range unless you have already typed past it,
+                    // in which case stepping simply continues from where you are.
+                    double lo = Math.min(softMin, get.getAsDouble());
+                    double hi = Math.max(softMax, get.getAsDouble());
+                    set.accept(integral ? Math.rint(clamp(next, lo, hi)) : clamp(next, lo, hi));
+                });
+        setting.rawGet = get;
+        setting.rawSet = set;
+        setting.integral = integral;
+        setting.hardMin = hardMin;
+        setting.hardMax = hardMax;
+        SETTINGS.add(setting);
     }
 
     static {
@@ -116,18 +177,17 @@ public final class FeatureRegistry {
                 + "Without this you drop out of the sky whenever something hits you.",
                 Category.MOVEMENT, Compat.LOCAL,
                 () -> FeatureConfig.flyPersistThroughDamage, v -> FeatureConfig.flyPersistThroughDamage = v);
-        s("Fly Speed", "Flight speed, re-applied every tick because the resync resets it.",
-                Category.MOVEMENT,
-                () -> String.format("%.2f", FeatureConfig.flySpeed),
-                d -> FeatureConfig.flySpeed = clamp(FeatureConfig.flySpeed + 0.01 * d, 0.01, 1.0));
+        num("Fly Speed", "Flight speed, re-applied every tick because the resync resets it.", Category.MOVEMENT, "",
+                () -> FeatureConfig.flySpeed, v -> FeatureConfig.flySpeed = v,
+                0.01, 0.01, 1, 0.01, 10, false);
         f("Anti-Kinetic", "Bleed off elytra speed before a wall. Kinetic damage is computed on the "
                 + "server from the speed you lose, so this is mitigation, not immunity.",
                 Category.MOVEMENT, Compat.SERVER,
                 () -> FeatureConfig.noFallKinetic, v -> FeatureConfig.noFallKinetic = v);
 
-        s("Timer Speed", "Tick multiplier. 1.0 is vanilla; above ~2.0 gets you flagged fast.", Category.MOVEMENT,
-                () -> String.format("%.2fx", FeatureConfig.timerSpeed),
-                d -> FeatureConfig.timerSpeed = clamp(FeatureConfig.timerSpeed + 0.05D * d, 0.5D, 3.0D));
+        num("Timer Speed", "Tick multiplier. 1.0 is vanilla; above ~2.0 gets you flagged fast.", Category.MOVEMENT, "x",
+                () -> FeatureConfig.timerSpeed, v -> FeatureConfig.timerSpeed = v,
+                0.1, 0.1, 5, 0.1, 50, false);
 
         // ----------------------------------------------------------- EXPLOITS
         f("Auto Lockpick", "Audio/entropy solver that opens Locks tumblers through the mod's own packets.",
@@ -168,12 +228,12 @@ public final class FeatureRegistry {
         f("Magnet: Only My Drops", "Ignore items that another player dropped.",
                 Category.TOOLS, Compat.LOCAL,
                 () -> FeatureConfig.magnetOnlyMine, v -> FeatureConfig.magnetOnlyMine = v);
-        s("Magnet Radius", "How far the item vacuum reaches.", Category.TOOLS,
-                () -> String.format("%.1fm", FeatureConfig.magnetRadius),
-                d -> FeatureConfig.magnetRadius = clamp(FeatureConfig.magnetRadius + 0.5 * d, 1.0, 32.0));
-        s("Magnet Speed", "How hard items are pulled toward you.", Category.TOOLS,
-                () -> String.format("%.2f", FeatureConfig.magnetSpeed),
-                d -> FeatureConfig.magnetSpeed = clamp(FeatureConfig.magnetSpeed + 0.05 * d, 0.05, 2.0));
+        num("Magnet Radius", "How far the item vacuum reaches.", Category.TOOLS, "m",
+                () -> FeatureConfig.magnetRadius, v -> FeatureConfig.magnetRadius = v,
+                0.5, 1, 32, 0.5, 256, false);
+        num("Magnet Speed", "How hard items are pulled toward you.", Category.TOOLS, "",
+                () -> FeatureConfig.magnetSpeed, v -> FeatureConfig.magnetSpeed = v,
+                0.05, 0.05, 2, 0.01, 20, false);
 
         f("Client Lock Un-cancel", "REQUIRED for locked tools. Reskillable runs on your client too and "
                 + "cancels mining/interaction locally, so the packet never even reaches the server. "
@@ -193,13 +253,12 @@ public final class FeatureRegistry {
                 + "Input-driven: nothing happens unless you actually click.",
                 Category.COMBAT, Compat.SERVER,
                 () -> FeatureConfig.clickAura, v -> FeatureConfig.clickAura = v);
-        s("Aura Range", "Sphere radius around you. The server still enforces its own reach.",
-                Category.COMBAT,
-                () -> String.format("%.1fm", FeatureConfig.clickAuraRange),
-                d -> FeatureConfig.clickAuraRange = clamp(FeatureConfig.clickAuraRange + 0.5 * d, 1.0, 12.0));
-        s("Aura Max Targets", "Cap on how many entities one swing hits.", Category.COMBAT,
-                () -> String.valueOf(FeatureConfig.clickAuraMaxTargets),
-                d -> FeatureConfig.clickAuraMaxTargets = (int) clamp(FeatureConfig.clickAuraMaxTargets + d, 1, 32));
+        num("Aura Range", "Sphere radius around you. The server still enforces its own reach.", Category.COMBAT, "m",
+                () -> FeatureConfig.clickAuraRange, v -> FeatureConfig.clickAuraRange = v,
+                0.5, 1, 12, 0.5, 256, false);
+        num("Aura Max Targets", "Cap on how many entities one swing hits.", Category.COMBAT, "",
+                () -> FeatureConfig.clickAuraMaxTargets, v -> FeatureConfig.clickAuraMaxTargets = (int) v,
+                1, 1, 32, 1, 1024, true);
         f("Aura: Respect Cooldown", "Only fire on a charged swing, matching vanilla attack speed.",
                 Category.COMBAT, Compat.LOCAL,
                 () -> FeatureConfig.clickAuraRespectCooldown, v -> FeatureConfig.clickAuraRespectCooldown = v);
@@ -279,19 +338,19 @@ public final class FeatureRegistry {
                 + "and there is no halo.",
                 Category.VISUALS, Compat.LOCAL,
                 () -> FeatureConfig.espModelOutline, v -> FeatureConfig.espModelOutline = v);
-        s("Outline Thickness", "Model outline width in pixels.", Category.VISUALS,
-                () -> String.format("%.1fpx", FeatureConfig.espOutlineWidth),
-                d -> FeatureConfig.espOutlineWidth = clamp(FeatureConfig.espOutlineWidth + 0.5 * d, 0.5, 10.0));
+        num("Outline Thickness", "Model outline width in pixels.", Category.VISUALS, "px",
+                () -> FeatureConfig.espOutlineWidth, v -> FeatureConfig.espOutlineWidth = v,
+                0.5, 0.5, 10, 0.1, 64, false);
         f("Outline Through Walls", "Draw model outlines through terrain.",
                 Category.VISUALS, Compat.LOCAL,
                 () -> FeatureConfig.espOutlineThroughWalls, v -> FeatureConfig.espOutlineThroughWalls = v);
 
-        s("ESP Line Width", "Outline thickness.", Category.VISUALS,
-                () -> String.format("%.1f", FeatureConfig.espLineWidth),
-                d -> FeatureConfig.espLineWidth = clamp(FeatureConfig.espLineWidth + 0.5 * d, 0.5, 6.0));
-        s("ESP Range", "Maximum draw distance in blocks. Lower = better FPS.", Category.VISUALS,
-                () -> FeatureConfig.espRange + "m",
-                d -> FeatureConfig.espRange = (int) clamp(FeatureConfig.espRange + 8 * d, 16, 192));
+        num("ESP Line Width", "Outline thickness.", Category.VISUALS, "px",
+                () -> FeatureConfig.espLineWidth, v -> FeatureConfig.espLineWidth = v,
+                0.5, 0.5, 6, 0.1, 64, false);
+        num("ESP Range", "Maximum draw distance in blocks. Lower = better FPS.", Category.VISUALS, "m",
+                () -> FeatureConfig.espRange, v -> FeatureConfig.espRange = (int) v,
+                8, 16, 256, 1, 4096, true);
 
         // ----------------------------------------------------------------- XRay
         f("XRay", "Highlights the blocks on your list through terrain. Edit the list in the Tools tab.",
@@ -300,10 +359,9 @@ public final class FeatureRegistry {
         f("XRay Tracers", "Draws a line from your crosshair to every XRay hit.",
                 Category.VISUALS, Compat.LOCAL,
                 () -> FeatureConfig.xrayTracers, v -> FeatureConfig.xrayTracers = v);
-        s("XRay Range", "Scan radius. Cost grows with the cube of this - 28 is a good balance.",
-                Category.VISUALS,
-                () -> FeatureConfig.xrayRange + "m",
-                d -> FeatureConfig.xrayRange = (int) clamp(FeatureConfig.xrayRange + 4 * d, 8, 64));
+        num("XRay Range", "Scan radius. Cost grows with the cube of this - 28 is a good balance.", Category.VISUALS, "m",
+                () -> FeatureConfig.xrayRange, v -> FeatureConfig.xrayRange = (int) v,
+                4, 8, 64, 1, 256, true);
         s("XRay Rescan", "Ticks between scans. Lower reacts faster but costs more CPU.",
                 Category.VISUALS,
                 () -> FeatureConfig.xrayRescanTicks + "t",

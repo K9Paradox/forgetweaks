@@ -187,19 +187,34 @@ public class GuiUtilityMenu extends GuiScreen {
     private static class SettingRow extends Row {
         final FeatureRegistry.Setting setting;
         SettingRow(FeatureRegistry.Setting s) {
-            super(s.name, s.desc + "  \u00a78[left click +  \u00b7  right click -]");
+            super(s.name, s.desc + (s.isTypable()
+                    ? "  \u00a78[click the number to type it  \u00b7  left/right click the row to step]"
+                    : "  \u00a78[left click +  \u00b7  right click -]"));
             this.setting = s;
         }
         @Override void click(int button) {
             setting.adjust(button == 1 ? -1 : 1);
         }
         @Override void render(GuiUtilityMenu gui, int x, int y, int width) {
-            String value = setting.value();
-            int w = gui.fontRenderer.getStringWidth(value) + 14;
+            boolean active = gui.editing == setting;
+            String value = active
+                    ? gui.editBuffer + ((gui.caretTimer / 6) % 2 == 0 ? "_" : "")
+                    : setting.value();
+            int w = Math.max(34, gui.fontRenderer.getStringWidth(value) + 14);
             int chipX = x + width - w - 10;
             gui.drawText(gui.fit(setting.name, chipX - (x + 10) - 6), x + 10, y + 7, COL_DIM);
-            rect(chipX, y + 4, chipX + w, y + ROW_H - 4, 0x22FFC24B);
+            rect(chipX, y + 4, chipX + w, y + ROW_H - 4, active ? 0x44FFC24B : 0x22FFC24B);
+            if (active) {
+                rect(chipX, y + ROW_H - 5, chipX + w, y + ROW_H - 4, COL_ACCENT);
+            }
             gui.drawText(value, chipX + 7, y + 7, COL_ACCENT);
+        }
+
+        /** Chip bounds, so a click can tell "type here" from "step the value". */
+        int chipLeft(GuiUtilityMenu gui, int x, int width) {
+            String value = gui.editing == setting ? gui.editBuffer : setting.value();
+            int w = Math.max(34, gui.fontRenderer.getStringWidth(value) + 14);
+            return x + width - w - 10;
         }
     }
 
@@ -452,11 +467,52 @@ public class GuiUtilityMenu extends GuiScreen {
                 }));
     }
 
+    /** Setting currently being typed into, or null. */
+    private FeatureRegistry.Setting editing = null;
+    private String editBuffer = "";
+
     /** Transient confirmation shown in the footer. */
     private static String toast = null;
     private static int toastTicks = 0;
     /** Drives the checkmark that briefly replaces the Save row's chip. */
     private static int saveFlash = 0;
+
+    private void beginEdit(FeatureRegistry.Setting setting) {
+        editing = setting;
+        double raw = setting.rawValue();
+        editBuffer = setting.isIntegral()
+                ? String.valueOf((long) raw)
+                : trimZeros(String.format("%.3f", raw));
+    }
+
+    private static String trimZeros(String v) {
+        if (!v.contains(".")) return v;
+        v = v.replaceAll("0+$", "");
+        return v.endsWith(".") ? v.substring(0, v.length() - 1) : v;
+    }
+
+    /** Applies whatever has been typed. Invalid input simply leaves the value untouched. */
+    private void commitEdit() {
+        if (editing == null) return;
+        try {
+            String text = editBuffer.trim();
+            if (!text.isEmpty() && !text.equals("-") && !text.equals(".")) {
+                editing.setRaw(Double.parseDouble(text));
+                toast = "\u00a7a" + editing.name + " set to " + editing.value();
+                toastTicks = 60;
+            }
+        } catch (NumberFormatException ignored) {
+            toast = "\u00a7c\"" + editBuffer + "\" is not a number";
+            toastTicks = 60;
+        }
+        editing = null;
+        editBuffer = "";
+    }
+
+    private void cancelEdit() {
+        editing = null;
+        editBuffer = "";
+    }
 
     private void clampScroll() {
         int maxScroll = Math.max(0, rows.size() * (ROW_H + ROW_GAP) - contentHeight());
@@ -628,7 +684,7 @@ public class GuiUtilityMenu extends GuiScreen {
 
         String text = hoveredDesc != null
                 ? hoveredDesc
-                : "\u00a78Hover a row for details  \u00b7  type to search  \u00b7  scroll wheel to scroll  \u00b7  Esc to close";
+                : "\u00a78Hover for details  \u00b7  click a number to type it  \u00b7  type to search  \u00b7  Esc to close";
 
         // Wrap instead of truncating: descriptions were being cut off mid-word.
         List<String> lines = fontRenderer.listFormattedStringToWidth(text, PANEL_W - 20);
@@ -690,9 +746,11 @@ public class GuiUtilityMenu extends GuiScreen {
         super.mouseClicked(mouseX, mouseY, mouseButton);
 
         int x = panelX, y = panelY;
+        boolean wasEditing = editing != null;
 
         // close
         if (inside(mouseX, mouseY, x + PANEL_W - 24, y + 9, 17, 17)) {
+            commitEdit();
             closeMenu();
             return;
         }
@@ -732,7 +790,18 @@ public class GuiUtilityMenu extends GuiScreen {
             if (rowY < top || rowY + ROW_H > bottom) continue;
             if (!rows.get(i).selectable()) continue;
             if (inside(mouseX, mouseY, cx, rowY, cw, ROW_H)) {
-                rows.get(i).click(mouseButton);
+                Row row = rows.get(i);
+                // Clicking the value chip of a typable numeric setting starts text entry; the
+                // rest of the row keeps the old click-to-step behaviour.
+                if (row instanceof SettingRow) {
+                    SettingRow sr = (SettingRow) row;
+                    if (sr.setting.isTypable() && mouseX >= sr.chipLeft(this, cx, cw)) {
+                        beginEdit(sr.setting);
+                        return;
+                    }
+                }
+                commitEdit();
+                row.click(mouseButton);
                 return;
             }
         }
@@ -749,6 +818,22 @@ public class GuiUtilityMenu extends GuiScreen {
 
     @Override
     protected void keyTyped(char typedChar, int keyCode) throws IOException {
+        // Text entry for a numeric setting takes priority over search and the close binding.
+        if (editing != null) {
+            if (keyCode == Keyboard.KEY_ESCAPE) {
+                cancelEdit();
+            } else if (keyCode == Keyboard.KEY_RETURN || keyCode == Keyboard.KEY_NUMPADENTER) {
+                commitEdit();
+            } else if (keyCode == Keyboard.KEY_BACK) {
+                if (!editBuffer.isEmpty()) editBuffer = editBuffer.substring(0, editBuffer.length() - 1);
+            } else if ((typedChar >= '0' && typedChar <= '9')
+                    || (typedChar == '.' && !editing.isIntegral() && !editBuffer.contains("."))
+                    || (typedChar == '-' && editBuffer.isEmpty())) {
+                if (editBuffer.length() < 12) editBuffer += typedChar;
+            }
+            return;
+        }
+
         if (keyCode == Keyboard.KEY_ESCAPE) {
             if (!searchQuery.isEmpty()) {
                 searchQuery = "";
@@ -775,6 +860,11 @@ public class GuiUtilityMenu extends GuiScreen {
     }
 
     private void closeMenu() {
+        commitEdit();
+        closeMenuInternal();
+    }
+
+    private void closeMenuInternal() {
         FeatureConfig.saveConfig();
         this.mc.displayGuiScreen(null);
         if (this.mc.currentScreen == null) this.mc.setIngameFocus();
@@ -782,6 +872,7 @@ public class GuiUtilityMenu extends GuiScreen {
 
     @Override
     public void onGuiClosed() {
+        commitEdit();
         FeatureConfig.saveConfig();
     }
 }
