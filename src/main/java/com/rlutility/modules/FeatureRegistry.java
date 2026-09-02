@@ -112,6 +112,18 @@ public final class FeatureRegistry {
         f("Creative Flight", "Forces the flight capability. Vanilla servers kick for this.",
                 Category.MOVEMENT, Compat.RISKY,
                 () -> FeatureConfig.creativeFly, v -> FeatureConfig.creativeFly = v);
+        f("Fly: Survive Damage", "Re-assert flight after the ability resync that damage triggers. "
+                + "Without this you drop out of the sky whenever something hits you.",
+                Category.MOVEMENT, Compat.LOCAL,
+                () -> FeatureConfig.flyPersistThroughDamage, v -> FeatureConfig.flyPersistThroughDamage = v);
+        s("Fly Speed", "Flight speed, re-applied every tick because the resync resets it.",
+                Category.MOVEMENT,
+                () -> String.format("%.2f", FeatureConfig.flySpeed),
+                d -> FeatureConfig.flySpeed = clamp(FeatureConfig.flySpeed + 0.01 * d, 0.01, 1.0));
+        f("Anti-Kinetic", "Bleed off elytra speed before a wall. Kinetic damage is computed on the "
+                + "server from the speed you lose, so this is mitigation, not immunity.",
+                Category.MOVEMENT, Compat.SERVER,
+                () -> FeatureConfig.noFallKinetic, v -> FeatureConfig.noFallKinetic = v);
 
         s("Timer Speed", "Tick multiplier. 1.0 is vanilla; above ~2.0 gets you flagged fast.", Category.MOVEMENT,
                 () -> String.format("%.2fx", FeatureConfig.timerSpeed),

@@ -39,6 +39,12 @@ public final class FeatureConfig {
     public static boolean noFall = true;
     public static boolean stepSpeed = true;
     public static boolean creativeFly = false;
+    /** Re-assert flight after a server ability resync, which damage triggers. */
+    public static boolean flyPersistThroughDamage = true;
+    /** Fly speed re-applied each tick, since the resync also resets it. */
+    public static double flySpeed = 0.05D;
+    /** Bleed off elytra speed before a wall so kinetic damage stays under its threshold. */
+    public static boolean noFallKinetic = true;
     public static boolean noSlowdown = true;
     public static boolean waterWalk = false;
     public static boolean timerEnabled = false;

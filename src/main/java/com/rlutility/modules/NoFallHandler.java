@@ -29,7 +29,10 @@ public class NoFallHandler {
         if (player == null || player.connection == null || event.player != player) return;
         if (player.capabilities.isCreativeMode || player.isSpectator()) return;
         if (AutoCritHandler.critWindow > 0) return; // let the crit hop keep its fall distance
-        if (player.isElytraFlying()) return;
+        if (player.isElytraFlying()) {
+            dampBeforeImpact(player);
+            return;
+        }
 
         // Only lie about being grounded once the drop would actually hurt.
         if (!player.onGround && player.motionY < 0.0D && player.fallDistance > 2.0F) {
@@ -41,6 +44,57 @@ public class NoFallHandler {
         if (player.collidedHorizontally || player.collidedVertically) {
             player.getEntityData().setDouble("prevMotionCombined", 0.0D);
         }
+    }
+
+    /**
+     * Kinetic ("flew into a wall") damage cannot be cancelled from the client.
+     *
+     * <p>It is applied inside {@code EntityLivingBase#travel} on the server:</p>
+     *
+     * <pre>
+     * if (this.collidedHorizontally &amp;&amp; !this.world.isRemote) {
+     *     double d13 = &lt;horizontal speed before&gt; - &lt;horizontal speed after&gt;;
+     *     double d14 = d13 * 10.0D - 3.0D;
+     *     if (d14 &gt; 0.0D) this.attackEntityFrom(DamageSource.FLY_INTO_WALL, (float) d14);
+     * }
+     * </pre>
+     *
+     * The damage is derived purely from how much horizontal speed the server saw you lose, and the
+     * server derives that speed from the position packets we send. There is no flag to spoof - the
+     * only lever is the motion itself. So rather than pretend, this bleeds off speed while a wall is
+     * still ahead, keeping the delta under the {@code d13 * 10 - 3} threshold when the impact lands.
+     *
+     * <p>That makes it mitigation rather than immunity: a head-on hit at full elytra speed with no
+     * warning distance can still hurt.</p>
+     */
+    private static void dampBeforeImpact(EntityPlayerSP player) {
+        if (!FeatureConfig.noFallKinetic) return;
+
+        double speed = Math.sqrt(player.motionX * player.motionX + player.motionZ * player.motionZ);
+        // Below the threshold the server's d14 is negative anyway, so leave flight alone.
+        if (speed < 0.3D) return;
+
+        double look = Math.max(1.5D, Math.min(6.0D, speed * 8.0D));
+        net.minecraft.util.math.Vec3d from = player.getPositionEyes(1.0F);
+        net.minecraft.util.math.Vec3d dir = new net.minecraft.util.math.Vec3d(
+                player.motionX, 0.0D, player.motionZ).normalize();
+        net.minecraft.util.math.Vec3d to = from.addVector(dir.x * look, 0.0D, dir.z * look);
+
+        net.minecraft.util.math.RayTraceResult hit = player.world.rayTraceBlocks(from, to, false, true, false);
+        if (hit == null || hit.typeOfHit != net.minecraft.util.math.RayTraceResult.Type.BLOCK) return;
+
+        double distance = from.distanceTo(hit.hitVec);
+        // Shed speed proportionally to how close the wall is; at contact we are near a standstill.
+        double factor = Math.max(0.0D, Math.min(1.0D, (distance - 0.6D) / look));
+        player.motionX *= factor;
+        player.motionZ *= factor;
+        dampened++;
+    }
+
+    private static int dampened = 0;
+
+    public static int getDampenCount() {
+        return dampened;
     }
 
     /**
