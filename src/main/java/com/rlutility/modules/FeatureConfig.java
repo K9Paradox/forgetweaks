@@ -122,7 +122,8 @@ public final class FeatureConfig {
     // ------------------------------------------------------------- ESP style
     /**
      * Per-category render style, one entry per EspRenderHelper.Kind in ordinal order.
-     * 0 = box, 1 = corner brackets, 2 = filled + outline, 3 = ground footprint.
+     * 0 = box, 1 = corner brackets, 2 = filled + outline, 3 = ground footprint,
+     * 4 = glow (vanilla entity-outline shader, entities only).
      * Stored as a comma separated string so the reflective config writer can persist it.
      */
     public static String espStyles = "0,0,0,0,1,2,1,0,3,1,1";
@@ -155,7 +156,7 @@ public final class FeatureConfig {
         int len = Math.max(cur.length, index + 1);
         int[] next = new int[len];
         System.arraycopy(cur, 0, next, 0, cur.length);
-        next[index] = ((next[index] + delta) % 4 + 4) % 4;
+        next[index] = ((next[index] + delta) % 5 + 5) % 5;
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < len; i++) {
             if (i > 0) sb.append(',');
@@ -164,6 +165,10 @@ public final class FeatureConfig {
         espStyles = sb.toString();
     }
     public static double espLineWidth = 1.5D;
+    /** Master switch for the shader-based glow outline used by style 4. */
+    public static boolean espGlowOutline = true;
+    /** Tint the glow per category using client-side scoreboard teams. */
+    public static boolean espGlowColors = true;
 
     /** Show the exact enchantments each table slot will give, derived from the synced xpSeed. */
     public static boolean enchantPreview = true;

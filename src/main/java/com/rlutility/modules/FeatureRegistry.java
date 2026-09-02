@@ -259,9 +259,17 @@ public final class FeatureRegistry {
             final int index = kind.ordinal();
             s("Style: " + kind.title, "Highlight shape used for " + kind.title.toLowerCase()
                     + " targets only.", Category.VISUALS,
-                    () -> new String[]{"Box", "Corners", "Filled", "Footprint"}[kind.style()],
+                    () -> new String[]{"Box", "Corners", "Filled", "Footprint", "Glow"}[kind.style()],
                     d -> FeatureConfig.cycleEspStyle(index, d));
         }
+
+        f("Glow Outlines", "Enables the shader-based model outline used by the Glow style. Follows "
+                + "the actual model instead of a box, using Minecraft's own entity-outline pass.",
+                Category.VISUALS, Compat.LOCAL,
+                () -> FeatureConfig.espGlowOutline, v -> FeatureConfig.espGlowOutline = v);
+        f("Glow: Per-Type Colour", "Tint glow outlines by category via client-side scoreboard teams.",
+                Category.VISUALS, Compat.LOCAL,
+                () -> FeatureConfig.espGlowColors, v -> FeatureConfig.espGlowColors = v);
 
         s("ESP Line Width", "Outline thickness.", Category.VISUALS,
                 () -> String.format("%.1f", FeatureConfig.espLineWidth),

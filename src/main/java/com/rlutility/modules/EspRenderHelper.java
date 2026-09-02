@@ -74,7 +74,7 @@ public class EspRenderHelper {
         public int style() {
             int[] styles = FeatureConfig.espStyleArray();
             int i = ordinal();
-            return i < styles.length ? Math.max(0, Math.min(3, styles[i])) : 0;
+            return i < styles.length ? Math.max(0, Math.min(4, styles[i])) : 0;
         }
     }
 
@@ -209,6 +209,11 @@ public class EspRenderHelper {
         return null;
     }
 
+    /** Entity category, for the glow handler. */
+    public static Kind kindOfPublic(Entity entity) {
+        return kindOf(entity);
+    }
+
     private static Kind kindOf(Entity entity) {
         String id = idOf(entity);
 
@@ -284,6 +289,9 @@ public class EspRenderHelper {
     private static void drawStyled(AxisAlignedBB bb, Kind kind, float alpha) {
         float[] color = kind.color;
         GlStateManager.glLineWidth((float) Math.max(0.5D, Math.min(6.0D, FeatureConfig.espLineWidth)));
+
+        // Style 4 ("Glow") is drawn by GlowEspHandler via vanilla's outline shader, not here.
+        if (kind.style() == 4) return;
 
         switch (kind.style()) {
             case 1:
