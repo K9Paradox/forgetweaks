@@ -28,7 +28,7 @@ public class CommandRLUtility extends CommandBase {
 
     @Override
     public String getUsage(ICommandSender sender) {
-        return "/rlu | diag | mods | level <n> | tree <t> <n> | safe | max | class <t> | revert | xray [block|here] | unlock | buy <skill> [n]";
+        return "/rlu | diag | race | mods | level <n> | tree <t> <n> | safe | max | class <t> | revert | xray [block|here] | unlock | buy <skill> [n]";
     }
 
     @Override
@@ -132,6 +132,28 @@ public class CommandRLUtility extends CommandBase {
                         com.rlutility.modules.XRayHandler.forceRescan();
                         say(mc, "\u00a7fXRay " + (FeatureConfig.xrayEnabled ? "\u00a7aENABLED" : "\u00a7cDISABLED"));
                     }
+                });
+                return;
+            } else if (sub.equals("race")) {
+                // /rlu race            -> list
+                // /rlu race <name> [element]
+                final String[] a = args;
+                mc.addScheduledTask(() -> {
+                    if (a.length < 2 || a[1].equalsIgnoreCase("list")) {
+                        if (!com.rlutility.modules.TrinketRaceHandler.isAvailable()) {
+                            say(mc, "\u00a7cTrinkets race API unavailable: "
+                                    + com.rlutility.modules.TrinketRaceHandler.getError());
+                            return;
+                        }
+                        say(mc, "\u00a76Races: \u00a7f"
+                                + String.join(", ", com.rlutility.modules.TrinketRaceHandler.listNames()));
+                        say(mc, "\u00a76Elements: \u00a7f"
+                                + String.join(", ", com.rlutility.modules.TrinketRaceHandler.elements().keySet()));
+                        say(mc, "\u00a77Usage: /rlu race <race> [element]");
+                        return;
+                    }
+                    say(mc, com.rlutility.modules.TrinketRaceHandler.select(
+                            a[1], a.length > 2 ? a[2] : null));
                 });
                 return;
             } else if (sub.equals("mods")) {

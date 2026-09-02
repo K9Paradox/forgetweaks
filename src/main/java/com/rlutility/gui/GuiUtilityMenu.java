@@ -271,6 +271,21 @@ public class GuiUtilityMenu extends GuiScreen {
                     "buy", () -> announceResult(ReskillableHelper.unlockHeldItem())));
         }
 
+        if (com.rlutility.modules.TrinketRaceHandler.isAvailable()) {
+            rows.add(new ActionRow("Trinkets: Set Race",
+                    "SelectRacePacket only checks null/none/blacklist. If the server enables the race "
+                            + "selection menu the authorization check is short-circuited entirely; even "
+                            + "when it is not, the authorization records THAT you may change race, never "
+                            + "which one - so any pending authorization redeems for any race. "
+                            + "Use /rlu race <race> [element].",
+                    "list", () -> {
+                        announceResult("\u00a76Races: \u00a7f" + String.join(", ",
+                                com.rlutility.modules.TrinketRaceHandler.listNames()));
+                        announceResult("\u00a77Apply with /rlu race <race> [element]");
+                        mc.displayGuiScreen(null);
+                    }));
+        }
+
         if (QuestExploitHandler.isModLoaded()) {
             rows.add(new ActionRow("Quest Sweep",
                     "BetterQuesting's quest_action channel has no permission check, and its id array is "
