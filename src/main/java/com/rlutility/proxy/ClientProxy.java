@@ -26,7 +26,7 @@ import com.rlutility.modules.JesusHandler;
 import com.rlutility.modules.ClickAuraHandler;
 import com.rlutility.modules.DupeExploitHandler;
 import com.rlutility.modules.EnchantPreviewHandler;
-import com.rlutility.modules.GlowEspHandler;
+import com.rlutility.modules.ModelOutlineHandler;
 import com.rlutility.modules.ReskillableClientUnlock;
 import com.rlutility.modules.QuestExploitHandler;
 import com.rlutility.modules.LevelUpExploitHandler;
@@ -102,7 +102,7 @@ public class ClientProxy extends CommonProxy {
         MinecraftForge.EVENT_BUS.register(new ReskillableHelper());
         MinecraftForge.EVENT_BUS.register(new ReskillableClientUnlock());
         MinecraftForge.EVENT_BUS.register(new EspRenderHelper());
-        MinecraftForge.EVENT_BUS.register(new GlowEspHandler());
+        MinecraftForge.EVENT_BUS.register(new ModelOutlineHandler());
         MinecraftForge.EVENT_BUS.register(new XRayHandler());
         MinecraftForge.EVENT_BUS.register(new HudOverlay());
 
@@ -148,7 +148,6 @@ public class ClientProxy extends CommonProxy {
     public void onDisconnect(FMLNetworkEvent.ClientDisconnectionFromServerEvent event) {
         TimerHandler.reset();
         DupeExploitHandler.onDisconnect();
-        GlowEspHandler.reset();
         XRayHandler.forceRescan();
     }
 

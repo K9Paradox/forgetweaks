@@ -123,7 +123,7 @@ public final class FeatureConfig {
     /**
      * Per-category render style, one entry per EspRenderHelper.Kind in ordinal order.
      * 0 = box, 1 = corner brackets, 2 = filled + outline, 3 = ground footprint,
-     * 4 = glow (vanilla entity-outline shader, entities only).
+     * 4 = outline (wireframe trace of the real model, living entities only).
      * Stored as a comma separated string so the reflective config writer can persist it.
      */
     public static String espStyles = "0,0,0,0,1,2,1,0,3,1,1";
@@ -165,10 +165,12 @@ public final class FeatureConfig {
         espStyles = sb.toString();
     }
     public static double espLineWidth = 1.5D;
-    /** Master switch for the shader-based glow outline used by style 4. */
-    public static boolean espGlowOutline = true;
-    /** Tint the glow per category using client-side scoreboard teams. */
-    public static boolean espGlowColors = true;
+    /** Master switch for the wireframe model outline used by style 4. */
+    public static boolean espModelOutline = true;
+    /** Outline thickness in pixels. Real line rasterising, so this is exact. */
+    public static double espOutlineWidth = 2.0D;
+    /** Draw the model outline through terrain. */
+    public static boolean espOutlineThroughWalls = true;
 
     /** Show the exact enchantments each table slot will give, derived from the synced xpSeed. */
     public static boolean enchantPreview = true;
@@ -267,7 +269,10 @@ public final class FeatureConfig {
         } catch (Exception ignored) {}
     }
 
-    public static void saveConfig() {
+    /** Absolute path of the last successful write, or the failure reason. */
+    public static volatile String lastSaveResult = "not saved yet";
+
+    public static boolean saveConfig() {
         try {
             File file = getConfigFile();
             if (file.getParentFile() != null) file.getParentFile().mkdirs();
@@ -279,6 +284,14 @@ public final class FeatureConfig {
             try (FileWriter writer = new FileWriter(file)) {
                 props.store(writer, "RLUtility feature configuration - RLCraft 2.9.3");
             }
-        } catch (Exception ignored) {}
+            // Previously this swallowed every exception, so a failed write looked identical to a
+            // successful one. Report the real path and size instead.
+            lastSaveResult = file.getAbsolutePath() + " (" + props.size() + " settings, "
+                    + file.length() + " bytes)";
+            return true;
+        } catch (Exception e) {
+            lastSaveResult = "FAILED: " + e;
+            return false;
+        }
     }
 }

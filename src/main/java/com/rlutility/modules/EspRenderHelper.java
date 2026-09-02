@@ -290,8 +290,13 @@ public class EspRenderHelper {
         float[] color = kind.color;
         GlStateManager.glLineWidth((float) Math.max(0.5D, Math.min(6.0D, FeatureConfig.espLineWidth)));
 
-        // Style 4 ("Glow") is drawn by GlowEspHandler via vanilla's outline shader, not here.
-        if (kind.style() == 4) return;
+        // Style 4 ("Outline") is drawn by ModelOutlineHandler as a wireframe pass over the real
+        // model. Blocks have no model renderer to trace, so they fall back to a box.
+        if (kind.style() == 4) {
+            if (kind.ordinal() >= Kind.BOSS.ordinal()) return;
+            RenderGlobal.drawSelectionBoundingBox(bb, color[0], color[1], color[2], alpha);
+            return;
+        }
 
         switch (kind.style()) {
             case 1:

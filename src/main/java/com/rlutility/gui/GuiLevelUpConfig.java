@@ -23,7 +23,8 @@ import java.util.List;
 public class GuiLevelUpConfig extends GuiScreen {
 
     private static final int PANEL_W = 440;
-    private static final int PANEL_H = 300;
+    // 68 header/tabs/search + 8*24 list + options row + bottom row + margin.
+    private static final int PANEL_H = 328;
     private static final int MAX_VISIBLE = 8;
     private static final int ROW_H = 24;
 
@@ -150,7 +151,7 @@ public class GuiLevelUpConfig extends GuiScreen {
         this.buttonList.add(new GuiButton(77, startX + 375, optY, 55, 20, TextFormatting.GRAY + "Revert"));
 
         // Bottom actions
-        int bottomY = startY + PANEL_H - 24;
+        int bottomY = startY + PANEL_H - 26;
         this.buttonList.add(new GuiButton(70, startX + 10, bottomY, 110, 20, TextFormatting.AQUA + "Safe (No Sprint)"));
         this.buttonList.add(new GuiButton(71, startX + 125, bottomY, 80, 20, TextFormatting.YELLOW + "Reset All 0"));
         this.buttonList.add(new GuiButton(72, startX + 210, bottomY, 140, 20,

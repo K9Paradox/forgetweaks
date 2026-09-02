@@ -230,6 +230,12 @@ public class GuiUtilityMenu extends GuiScreen {
                         GuiUtilityMenu::allBlockIds,
                         XRayHandler::lookingAtBlockId))));
 
+        rows.add(new ActionRow("ESP Categories",
+                "One table for every ESP category: enable, style and colour side by side. Replaces "
+                        + "the eleven separate style rows that were crowding this tab.",
+                EspRenderHelper.Kind.values().length + " types",
+                () -> mc.displayGuiScreen(new GuiEspConfig(this))));
+
         rows.add(new ActionRow("Edit ESP Entities",
                 "Extra mobs to outline, on top of the category toggles. Look at a creature and add it.",
                 EspRenderHelper.customEntities().size() + " entities", () -> mc.displayGuiScreen(new GuiTargetListEditor(
@@ -362,12 +368,15 @@ public class GuiUtilityMenu extends GuiScreen {
         rows.add(new ActionRow("Save Configuration",
                 "Writes config/rlutility_features.cfg immediately.",
                 saveFlash > 0 ? "\u2714 saved" : "save", () -> {
-                    FeatureConfig.saveConfig();
-                    // Confirm in the footer AND in chat - previously this button gave no feedback.
-                    toast = "\u00a7a\u2714 Saved to config/rlutility_features.cfg";
-                    toastTicks = 70;
-                    saveFlash = 70;
-                    announceResult("\u00a7aConfiguration saved.");
+                    boolean ok = FeatureConfig.saveConfig();
+                    // Report the real outcome and path; a silent catch used to hide write failures.
+                    toast = (ok ? "\u00a7a\u2714 Saved: " : "\u00a7c\u2718 Save failed: ")
+                            + FeatureConfig.lastSaveResult;
+                    toastTicks = 120;
+                    saveFlash = 120;
+                    announceResult((ok ? "\u00a7aSaved \u00a77" : "\u00a7cSave FAILED \u00a77")
+                            + FeatureConfig.lastSaveResult);
+                    rebuildRows();
                 }));
     }
 

@@ -253,23 +253,17 @@ public final class FeatureRegistry {
                 Category.VISUALS, Compat.LOCAL,
                 () -> FeatureConfig.espAllContainers, v -> FeatureConfig.espAllContainers = v);
 
-        // One style row per category, so chests and mobs can look different.
-        for (final com.rlutility.modules.EspRenderHelper.Kind kind
-                : com.rlutility.modules.EspRenderHelper.Kind.values()) {
-            final int index = kind.ordinal();
-            s("Style: " + kind.title, "Highlight shape used for " + kind.title.toLowerCase()
-                    + " targets only.", Category.VISUALS,
-                    () -> new String[]{"Box", "Corners", "Filled", "Footprint", "Glow"}[kind.style()],
-                    d -> FeatureConfig.cycleEspStyle(index, d));
-        }
-
-        f("Glow Outlines", "Enables the shader-based model outline used by the Glow style. Follows "
-                + "the actual model instead of a box, using Minecraft's own entity-outline pass.",
+        f("Model Outlines", "Trace the real model in wireframe for categories set to Outline. "
+                + "Unlike the vanilla glow this is plain line rasterising, so thickness is exact "
+                + "and there is no halo.",
                 Category.VISUALS, Compat.LOCAL,
-                () -> FeatureConfig.espGlowOutline, v -> FeatureConfig.espGlowOutline = v);
-        f("Glow: Per-Type Colour", "Tint glow outlines by category via client-side scoreboard teams.",
+                () -> FeatureConfig.espModelOutline, v -> FeatureConfig.espModelOutline = v);
+        s("Outline Thickness", "Model outline width in pixels.", Category.VISUALS,
+                () -> String.format("%.1fpx", FeatureConfig.espOutlineWidth),
+                d -> FeatureConfig.espOutlineWidth = clamp(FeatureConfig.espOutlineWidth + 0.5 * d, 0.5, 10.0));
+        f("Outline Through Walls", "Draw model outlines through terrain.",
                 Category.VISUALS, Compat.LOCAL,
-                () -> FeatureConfig.espGlowColors, v -> FeatureConfig.espGlowColors = v);
+                () -> FeatureConfig.espOutlineThroughWalls, v -> FeatureConfig.espOutlineThroughWalls = v);
 
         s("ESP Line Width", "Outline thickness.", Category.VISUALS,
                 () -> String.format("%.1f", FeatureConfig.espLineWidth),
