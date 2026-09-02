@@ -60,7 +60,9 @@ public class GuiEspConfig extends GuiScreen {
             case PLAYER: return FeatureConfig.espPlayers;
             case ITEM: return FeatureConfig.espItems;
             case MODDED: return FeatureConfig.espModdedMobs;
-            default: return true; // custom lists are driven by their contents
+            case CUSTOM_BLOCK: return FeatureConfig.espCustomBlocksOn;
+            case CUSTOM_ENTITY: return FeatureConfig.espCustomEntitiesOn;
+            default: return true;
         }
     }
 
@@ -75,13 +77,26 @@ public class GuiEspConfig extends GuiScreen {
             case PLAYER: FeatureConfig.espPlayers = !FeatureConfig.espPlayers; break;
             case ITEM: FeatureConfig.espItems = !FeatureConfig.espItems; break;
             case MODDED: FeatureConfig.espModdedMobs = !FeatureConfig.espModdedMobs; break;
+            case CUSTOM_BLOCK: FeatureConfig.espCustomBlocksOn = !FeatureConfig.espCustomBlocksOn; break;
+            case CUSTOM_ENTITY: FeatureConfig.espCustomEntitiesOn = !FeatureConfig.espCustomEntitiesOn; break;
             default: break;
         }
     }
 
-    /** Custom-list categories have no on/off of their own; the list decides. */
+    /** Every category can be switched off now, including the two custom lists. */
     private static boolean toggleable(EspRenderHelper.Kind kind) {
-        return kind != EspRenderHelper.Kind.CUSTOM_BLOCK && kind != EspRenderHelper.Kind.CUSTOM_ENTITY;
+        return true;
+    }
+
+    /** Entry count shown beside the custom rows, so an empty list is obvious. */
+    private static String detail(EspRenderHelper.Kind kind) {
+        if (kind == EspRenderHelper.Kind.CUSTOM_BLOCK) {
+            return EspRenderHelper.customBlocks().size() + " entries";
+        }
+        if (kind == EspRenderHelper.Kind.CUSTOM_ENTITY) {
+            return EspRenderHelper.customEntities().size() + " entries";
+        }
+        return null;
     }
 
     // -------------------------------------------------------------- input
@@ -182,6 +197,12 @@ public class GuiEspConfig extends GuiScreen {
                     : TextFormatting.DARK_GRAY + "\u2022 ")
                     + (on ? TextFormatting.WHITE : TextFormatting.DARK_GRAY) + kind.title;
             this.fontRenderer.drawStringWithShadow(name, x + 10, rowY + 5, 0xFFFFFF);
+
+            String detail = detail(kind);
+            if (detail != null) {
+                this.fontRenderer.drawStringWithShadow(TextFormatting.DARK_GRAY + detail,
+                        x + 10 + this.fontRenderer.getStringWidth(name) + 6, rowY + 5, 0xFFFFFF);
+            }
 
             int style = kind.style();
             drawRect(x + 158, rowY + 2, x + 258, rowY + ROW_H - 4, 0x22FFC24B);

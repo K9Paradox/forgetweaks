@@ -205,7 +205,10 @@ public class EspRenderHelper {
             return Kind.WAYSTONE;
         }
         if (FeatureConfig.espAllContainers && isContainerTile(te)) return Kind.CONTAINER;
-        if (CUSTOM_BLOCKS.contains(FeatureConfig.espCustomBlocks, idOf(te))) return Kind.CUSTOM_BLOCK;
+        if (FeatureConfig.espCustomBlocksOn
+                && CUSTOM_BLOCKS.contains(FeatureConfig.espCustomBlocks, idOf(te))) {
+            return Kind.CUSTOM_BLOCK;
+        }
         return null;
     }
 
@@ -217,7 +220,10 @@ public class EspRenderHelper {
     private static Kind kindOf(Entity entity) {
         String id = idOf(entity);
 
-        if (CUSTOM_ENTITIES.contains(FeatureConfig.espCustomEntities, id)) return Kind.CUSTOM_ENTITY;
+        if (FeatureConfig.espCustomEntitiesOn
+                && CUSTOM_ENTITIES.contains(FeatureConfig.espCustomEntities, id)) {
+            return Kind.CUSTOM_ENTITY;
+        }
         if (FeatureConfig.espDragons && isBoss(entity)) return Kind.BOSS;
         if (FeatureConfig.espPlayers && entity instanceof EntityPlayer) return Kind.PLAYER;
         if (FeatureConfig.espHostiles && entity instanceof IMob && entity instanceof EntityLivingBase) {
@@ -280,8 +286,8 @@ public class EspRenderHelper {
         return FeatureConfig.espChests || FeatureConfig.espSpawners || FeatureConfig.espWaystones
                 || FeatureConfig.espDragons || FeatureConfig.espHostiles || FeatureConfig.espPlayers
                 || FeatureConfig.espItems || FeatureConfig.espModdedMobs || FeatureConfig.espAllContainers
-                || !CUSTOM_ENTITIES.isEmpty(FeatureConfig.espCustomEntities)
-                || !CUSTOM_BLOCKS.isEmpty(FeatureConfig.espCustomBlocks);
+                || (FeatureConfig.espCustomEntitiesOn && !CUSTOM_ENTITIES.isEmpty(FeatureConfig.espCustomEntities))
+                || (FeatureConfig.espCustomBlocksOn && !CUSTOM_BLOCKS.isEmpty(FeatureConfig.espCustomBlocks));
     }
 
     // -------------------------------------------------------------- drawing

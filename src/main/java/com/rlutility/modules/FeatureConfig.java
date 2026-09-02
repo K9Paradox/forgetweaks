@@ -81,6 +81,11 @@ public final class FeatureConfig {
     public static boolean espModdedMobs = false;
     /** Highlight anything with an inventory, not just vanilla chests. */
     public static boolean espAllContainers = false;
+    /** Master toggles for the two custom lists; without these they could only be turned off by
+     *  emptying the list, which loses the entries. */
+    public static boolean espCustomEntitiesOn = true;
+    public static boolean espCustomBlocksOn = true;
+
     /** Extra entity ids to highlight, comma separated. Supports "iceandfire:*" prefix matching. */
     public static String espCustomEntities = "iceandfire:dragon_fire,iceandfire:dragon_ice,iceandfire:cyclops,iceandfire:hydra,iceandfire:dread_lich,iceandfire:gorgon,*dragon_skull*,*dragonskull*,*dragon_skeleton*";
     /** Extra block ids to highlight as containers/points of interest. */

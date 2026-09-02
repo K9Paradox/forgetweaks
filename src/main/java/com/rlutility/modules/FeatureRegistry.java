@@ -258,6 +258,15 @@ public final class FeatureRegistry {
                 Category.VISUALS, Compat.LOCAL,
                 () -> FeatureConfig.espTracers, v -> FeatureConfig.espTracers = v);
 
+        f("Custom Entity ESP", "Highlight the entity ids on your custom list. Edit the list from the "
+                + "Tools tab; this switches it on and off without losing the entries.",
+                Category.VISUALS, Compat.LOCAL,
+                () -> FeatureConfig.espCustomEntitiesOn, v -> FeatureConfig.espCustomEntitiesOn = v);
+        f("Custom Block ESP", "Highlight the block ids on your custom list, including the dragon "
+                + "skull patterns. Edit the list from the Tools tab.",
+                Category.VISUALS, Compat.LOCAL,
+                () -> FeatureConfig.espCustomBlocksOn, v -> FeatureConfig.espCustomBlocksOn = v);
+
         f("Modded Mob ESP", "Outlines every living entity that is not from vanilla Minecraft.",
                 Category.VISUALS, Compat.LOCAL,
                 () -> FeatureConfig.espModdedMobs, v -> FeatureConfig.espModdedMobs = v);
