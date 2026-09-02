@@ -61,24 +61,6 @@ public final class FeatureRegistry {
         f("Auto Criticals", "Packet micro-hop before every swing so the server registers a 1.5x crit.",
                 Category.COMBAT, Compat.SERVER,
                 () -> FeatureConfig.autoCriticals, v -> FeatureConfig.autoCriticals = v);
-        f("Kill Aura", "Auto-attacks the best target in range with rotation spoofing and real attack packets.",
-                Category.COMBAT, Compat.SERVER,
-                () -> FeatureConfig.killAura, v -> FeatureConfig.killAura = v);
-        f("KA: Target Players", "Let Kill Aura hit other players (off by default so you don't grief allies).",
-                Category.COMBAT, Compat.SERVER,
-                () -> FeatureConfig.killAuraPlayers, v -> FeatureConfig.killAuraPlayers = v);
-        f("KA: Target Animals", "Let Kill Aura hit passive mobs. Tamed pets are always skipped.",
-                Category.COMBAT, Compat.SERVER,
-                () -> FeatureConfig.killAuraAnimals, v -> FeatureConfig.killAuraAnimals = v);
-        f("KA: Wall Check", "Only swing when the target is actually visible - far less obvious to anti-cheat.",
-                Category.COMBAT, Compat.SERVER,
-                () -> FeatureConfig.killAuraWallCheck, v -> FeatureConfig.killAuraWallCheck = v);
-        f("KA: Silent Rotations", "Send look packets at the target without turning your camera.",
-                Category.COMBAT, Compat.SERVER,
-                () -> FeatureConfig.killAuraRotations, v -> FeatureConfig.killAuraRotations = v);
-        f("Nunchaku Triggerbot", "Keeps Better Survival nunchaku spinning and shreds whatever you look at.",
-                Category.COMBAT, Compat.MODDED,
-                () -> FeatureConfig.autoTriggerbot, v -> FeatureConfig.autoTriggerbot = v);
         f("Level Damage Bypass", "Fires the reach/attack packets of RLCombat, Spartan and I&F directly.",
                 Category.COMBAT, Compat.MODDED,
                 () -> FeatureConfig.levelDamageBypass, v -> FeatureConfig.levelDamageBypass = v);
@@ -101,12 +83,6 @@ public final class FeatureRegistry {
                 Category.COMBAT, Compat.SERVER,
                 () -> FeatureConfig.autoRespawn, v -> FeatureConfig.autoRespawn = v);
 
-        s("KA Range", "Kill Aura reach in blocks.", Category.COMBAT,
-                () -> String.format("%.1f", FeatureConfig.killAuraRange),
-                d -> FeatureConfig.killAuraRange = clamp(FeatureConfig.killAuraRange + 0.2D * d, 2.0D, 6.0D));
-        s("KA Speed", "Attacks per second cap (the vanilla cooldown is still respected).", Category.COMBAT,
-                () -> FeatureConfig.killAuraCps + " cps",
-                d -> FeatureConfig.killAuraCps = (int) clamp(FeatureConfig.killAuraCps + d, 1, 20));
         s("Auto Eat At", "Hunger level that triggers Auto Eat.", Category.COMBAT,
                 () -> FeatureConfig.autoEatThreshold + "/20",
                 d -> FeatureConfig.autoEatThreshold = (int) clamp(FeatureConfig.autoEatThreshold + d, 1, 19));
@@ -172,23 +148,6 @@ public final class FeatureRegistry {
                 d -> FeatureConfig.autoLootDelay = (int) clamp(FeatureConfig.autoLootDelay + d, 0, 10));
 
         // -------------------------------------------------------------- TOOLS
-        f("Lock Auto-Solve", "Solves Locks lock-picking with zero risk: swaps your pick out so wrong "
-                + "guesses cannot break it, then brute forces the permutation.",
-                Category.EXPLOITS, Compat.MODDED,
-                () -> FeatureConfig.locksAutoSolve, v -> FeatureConfig.locksAutoSolve = v);
-        f("Lock: Disarm Pick", "Swap the pick away so wrong guesses cannot break it. Turn OFF if the "
-                + "lock GUI closes instantly - some builds close it when the pick leaves your hand.",
-                Category.EXPLOITS, Compat.MODDED,
-                () -> FeatureConfig.locksDisarmPick, v -> FeatureConfig.locksDisarmPick = v);
-        f("Lock: Burst Mode", "Send every candidate pin each tick instead of one. Far faster, since "
-                + "wrong guesses are free. Turn OFF to learn the actual combination (needed only for "
-                + "seed cracking).",
-                Category.EXPLOITS, Compat.MODDED,
-                () -> FeatureConfig.locksBurstMode, v -> FeatureConfig.locksBurstMode = v);
-        s("Lock Solve Delay", "Ticks between pin guesses. Raise it if a server throttles packets.",
-                Category.EXPLOITS,
-                () -> FeatureConfig.locksSolveDelay + "t",
-                d -> FeatureConfig.locksSolveDelay = (int) clamp(FeatureConfig.locksSolveDelay + d, 1, 20));
         f("Enchant Preview", "Shows the exact enchantments all three table slots will give. Pure "
                 + "observation - the server hands the client its xpSeed, so nothing is sent.",
                 Category.VISUALS, Compat.LOCAL,
@@ -218,6 +177,27 @@ public final class FeatureRegistry {
         f("Bypass: Hold To Attack", "Keep attacking while the button is held down.",
                 Category.COMBAT, Compat.LOCAL,
                 () -> FeatureConfig.weaponBypassHeldAttack, v -> FeatureConfig.weaponBypassHeldAttack = v);
+        f("Click Aura", "One swing hits every valid target around you - no hitbox lining up. "
+                + "Input-driven: nothing happens unless you actually click.",
+                Category.COMBAT, Compat.SERVER,
+                () -> FeatureConfig.clickAura, v -> FeatureConfig.clickAura = v);
+        s("Aura Range", "Sphere radius around you. The server still enforces its own reach.",
+                Category.COMBAT,
+                () -> String.format("%.1fm", FeatureConfig.clickAuraRange),
+                d -> FeatureConfig.clickAuraRange = clamp(FeatureConfig.clickAuraRange + 0.5 * d, 1.0, 12.0));
+        s("Aura Max Targets", "Cap on how many entities one swing hits.", Category.COMBAT,
+                () -> String.valueOf(FeatureConfig.clickAuraMaxTargets),
+                d -> FeatureConfig.clickAuraMaxTargets = (int) clamp(FeatureConfig.clickAuraMaxTargets + d, 1, 32));
+        f("Aura: Respect Cooldown", "Only fire on a charged swing, matching vanilla attack speed.",
+                Category.COMBAT, Compat.LOCAL,
+                () -> FeatureConfig.clickAuraRespectCooldown, v -> FeatureConfig.clickAuraRespectCooldown = v);
+        f("Aura: Hit Players", "Include other players.", Category.COMBAT, Compat.LOCAL,
+                () -> FeatureConfig.clickAuraHitPlayers, v -> FeatureConfig.clickAuraHitPlayers = v);
+        f("Aura: Hit Passive", "Include passive mobs.", Category.COMBAT, Compat.LOCAL,
+                () -> FeatureConfig.clickAuraHitPassive, v -> FeatureConfig.clickAuraHitPassive = v);
+        f("Aura: Hit Tamed", "Include your own tamed animals.", Category.COMBAT, Compat.LOCAL,
+                () -> FeatureConfig.clickAuraHitTamed, v -> FeatureConfig.clickAuraHitTamed = v);
+
         f("Bypass: RLCombat Hook", "Attack through RLCombatCompat.attackEntityFromClient - the call the "
                 + "working nunchaku path uses. This is the one that actually lands.",
                 Category.COMBAT, Compat.SERVER,
@@ -226,19 +206,6 @@ public final class FeatureRegistry {
                 + "useful for experimenting.",
                 Category.COMBAT, Compat.SERVER,
                 () -> FeatureConfig.bypassExtraPackets, v -> FeatureConfig.bypassExtraPackets = v);
-        f("Packet: RLCombat", "Send RLCombat's PacketMainhandAttack. Most likely the effective one.",
-                Category.COMBAT, Compat.SERVER,
-                () -> FeatureConfig.bypassPacketRlcombat, v -> FeatureConfig.bypassPacketRlcombat = v);
-        f("Packet: Spartan Weaponry", "Send Spartan Weaponry's PacketLongReachAttack.",
-                Category.COMBAT, Compat.SERVER,
-                () -> FeatureConfig.bypassPacketSpartan, v -> FeatureConfig.bypassPacketSpartan = v);
-        f("Packet: Ice and Fire", "Send Ice and Fire's MessagePlayerHitMultipart.",
-                Category.COMBAT, Compat.SERVER,
-                () -> FeatureConfig.bypassPacketIaf, v -> FeatureConfig.bypassPacketIaf = v);
-        f("Packet: Trinkets", "Send the Trinkets and Baubles increased-reach attack packet.",
-                Category.COMBAT, Compat.SERVER,
-                () -> FeatureConfig.bypassPacketTrinkets, v -> FeatureConfig.bypassPacketTrinkets = v);
-
         f("Reskillable Auto-Buy", "Automatically spend XP levels to unlock the item you are holding.",
                 Category.TOOLS, Compat.MODDED,
                 () -> FeatureConfig.reskillableAutoBuy, v -> FeatureConfig.reskillableAutoBuy = v);
@@ -286,6 +253,13 @@ public final class FeatureRegistry {
                 Category.VISUALS, Compat.LOCAL,
                 () -> FeatureConfig.espAllContainers, v -> FeatureConfig.espAllContainers = v);
 
+        s("ESP Style", "Box, corner brackets, filled, or a ground footprint.", Category.VISUALS,
+                () -> new String[]{"Box", "Corners", "Filled", "Footprint"}[
+                        Math.max(0, Math.min(3, FeatureConfig.espStyle))],
+                d -> FeatureConfig.espStyle = (int) clamp(FeatureConfig.espStyle + d, 0, 3));
+        s("ESP Line Width", "Outline thickness.", Category.VISUALS,
+                () -> String.format("%.1f", FeatureConfig.espLineWidth),
+                d -> FeatureConfig.espLineWidth = clamp(FeatureConfig.espLineWidth + 0.5 * d, 0.5, 6.0));
         s("ESP Range", "Maximum draw distance in blocks. Lower = better FPS.", Category.VISUALS,
                 () -> FeatureConfig.espRange + "m",
                 d -> FeatureConfig.espRange = (int) clamp(FeatureConfig.espRange + 8 * d, 16, 192));

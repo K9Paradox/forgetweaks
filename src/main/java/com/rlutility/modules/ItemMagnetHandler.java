@@ -86,6 +86,11 @@ public class ItemMagnetHandler {
         Minecraft mc = Minecraft.getMinecraft();
         if (mc.player == null || mc.world == null) return;
 
+        // Hard stop while dead or dying. Otherwise the vacuum drags your own death drops back onto
+        // the corpse, where they stack up and despawn together - it was deleting loot, not saving it.
+        if (mc.player.isDead || mc.player.getHealth() <= 0.0F) return;
+        if (mc.currentScreen instanceof net.minecraft.client.gui.GuiGameOver) return;
+
         if (packetCooldown > 0) packetCooldown--;
 
         double radius = Math.max(1.0D, Math.min(32.0D, FeatureConfig.magnetRadius));

@@ -25,14 +25,6 @@ public final class FeatureConfig {
     // ---------------------------------------------------------------- Combat
     public static boolean autoCriticals = true;
     public static boolean levelDamageBypass = true;
-    public static boolean autoTriggerbot = false;
-    public static boolean killAura = false;
-    public static boolean killAuraPlayers = false;
-    public static boolean killAuraAnimals = false;
-    public static boolean killAuraWallCheck = true;
-    public static boolean killAuraRotations = true;
-    public static double killAuraRange = 4.2D;
-    public static int killAuraCps = 8;
     public static boolean antiKnockback = false;
     public static double antiKnockbackHorizontal = 0.0D;
     public static double antiKnockbackVertical = 0.0D;
@@ -84,9 +76,9 @@ public final class FeatureConfig {
     /** Highlight anything with an inventory, not just vanilla chests. */
     public static boolean espAllContainers = false;
     /** Extra entity ids to highlight, comma separated. Supports "iceandfire:*" prefix matching. */
-    public static String espCustomEntities = "iceandfire:dragon_fire,iceandfire:dragon_ice,iceandfire:cyclops,iceandfire:hydra";
+    public static String espCustomEntities = "iceandfire:dragon_fire,iceandfire:dragon_ice,iceandfire:cyclops,iceandfire:hydra,iceandfire:dread_lich,iceandfire:gorgon";
     /** Extra block ids to highlight as containers/points of interest. */
-    public static String espCustomBlocks = "waystones:waystone,minecraft:end_portal_frame,minecraft:beacon";
+    public static String espCustomBlocks = "waystones:waystone,minecraft:end_portal_frame,minecraft:beacon,iceandfire:dragonforge_fire_core,iceandfire:dragonforge_ice_core";
 
     // ---------------------------------------------------------------- XRay
     public static boolean xrayEnabled = false;
@@ -114,28 +106,23 @@ public final class FeatureConfig {
     public static String magnetBlacklist = "minecraft:rotten_flesh,minecraft:poisonous_potato";
 
     // ---------------------------------------------------------------- Locks
-    /** Auto-solve lock picking by disarming the pick so wrong guesses cost nothing. */
-    public static boolean locksAutoSolve = true;
-    /**
-     * Swap the pick out so wrong guesses cannot break it. Side effect: canInteractWith goes false
-     * and the mod's GUI closes itself, so this is skipped when the combination is already known.
-     */
-    public static boolean locksDisarmPick = true;
-    /**
-     * Fire every candidate pin each tick instead of one. Solves in roughly one ping per pin rather
-     * than one per guess. Trades away learning the combination, which only matters for seed cracking.
-     */
-    public static boolean locksBurstMode = true;
-    /** Echo every solver step to chat as well as logs/latest.log. */
-    public static boolean locksVerbose = true;
-    /** Solve sequentially until this many combinations are on file, so seed cracking has vectors. */
-    public static int locksLearnTarget = 2;
-    /** Ticks between pin guesses. 1 is fine; raise it if a server throttles packets. */
-    public static int locksSolveDelay = 1;
 
-    /** Overworld seed used to derive every Locks combination. Set via /rlu lockseed. */
-    public static long locksWorldSeed = 0L;
-    public static boolean locksSeedKnown = false;
+
+    // ------------------------------------------------------------- Click aura
+    /** One swing hits everything around you. Input-driven, not autonomous. */
+    public static boolean clickAura = false;
+    public static double clickAuraRange = 4.5D;
+    public static int clickAuraMaxTargets = 8;
+    public static int clickAuraCooldown = 0;
+    public static boolean clickAuraRespectCooldown = true;
+    public static boolean clickAuraHitPlayers = false;
+    public static boolean clickAuraHitPassive = false;
+    public static boolean clickAuraHitTamed = false;
+
+    // ------------------------------------------------------------- ESP style
+    /** 0 = box, 1 = corner brackets, 2 = filled + outline, 3 = ground footprint. */
+    public static int espStyle = 1;
+    public static double espLineWidth = 1.5D;
 
     /** Show the exact enchantments each table slot will give, derived from the synced xpSeed. */
     public static boolean enchantPreview = true;
@@ -156,12 +143,6 @@ public final class FeatureConfig {
     /** Also fire the raw mod attack packets. Off by default: they do not work on their own. */
     public static boolean bypassExtraPackets = false;
 
-    // Individually switchable so you can isolate which packet your server honours.
-    public static boolean bypassPacketRlcombat = true;
-    public static boolean bypassPacketSpartan = true;
-    public static boolean bypassPacketIaf = true;
-    public static boolean bypassPacketTrinkets = true;
-    public static boolean bypassPacketVanilla = true;
 
     /** Automatically spend XP on Reskillable levels needed by the item you are holding. */
     public static boolean reskillableAutoBuy = false;
@@ -186,7 +167,6 @@ public final class FeatureConfig {
     public static void init(File configDir) {
         configFile = new File(configDir, "rlutility_features.cfg");
         loadConfig();
-        LockSeedSolver.init(configDir);
     }
 
     private static File getConfigFile() {

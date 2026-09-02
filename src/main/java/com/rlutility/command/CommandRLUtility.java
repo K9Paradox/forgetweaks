@@ -28,7 +28,7 @@ public class CommandRLUtility extends CommandBase {
 
     @Override
     public String getUsage(ICommandSender sender) {
-        return "/rlu | diag | lockseed <seed> | lockcrack | lockdiag | lockadd | attacktest | mods | locksolve on|off | level <n> | tree <t> <n> | safe | max | class <t> | revert | xray [block|here] | unlock | buy <skill> [n]";
+        return "/rlu | diag | mods | level <n> | tree <t> <n> | safe | max | class <t> | revert | xray [block|here] | unlock | buy <skill> [n]";
     }
 
     @Override
@@ -143,122 +143,7 @@ public class CommandRLUtility extends CommandBase {
                     for (String m : mods) say(mc, "  \u00a7f" + m);
                 });
                 return;
-            } else if (sub.equals("locksolve")) {
-                final String arg = args.length > 1 ? args[1] : "toggle";
-                mc.addScheduledTask(() -> {
-                    if (arg.equalsIgnoreCase("on")) FeatureConfig.locksAutoSolve = true;
-                    else if (arg.equalsIgnoreCase("off")) FeatureConfig.locksAutoSolve = false;
-                    else FeatureConfig.locksAutoSolve = !FeatureConfig.locksAutoSolve;
-                    FeatureConfig.saveConfig();
-                    say(mc, "\u00a7fLock Auto-Solve " + (FeatureConfig.locksAutoSolve
-                            ? "\u00a7aENABLED" : "\u00a7cDISABLED"));
-                });
-                return;
-            } else if (sub.equals("attacktest")) {
-                mc.addScheduledTask(() -> {
-                    if (args.length > 1 && args[1].equalsIgnoreCase("stop")) {
-                        com.rlutility.modules.AttackMethodTester.stop();
-                        say(mc, "\u00a7eAttack test stopped.");
-                    } else {
-                        com.rlutility.modules.AttackMethodTester.start();
-                    }
-                });
-                return;
-            } else if (sub.equals("lockadd")) {
-                // /rlu lockadd <lockId> <p0> <p1> ...   - record a hand-solved combination
-                if (args.length < 3) {
-                    mc.addScheduledTask(() -> {
-                        say(mc, "\u00a7cUsage: /rlu lockadd <lockId> <pin0> <pin1> ...");
-                        say(mc, "\u00a77Get the lock id from /rlu lockdiag after opening the lock.");
-                    });
-                    return;
-                }
-                final String[] a = args;
-                mc.addScheduledTask(() -> {
-                    try {
-                        int id = Integer.parseInt(a[1].trim());
-                        byte[] combo = new byte[a.length - 2];
-                        for (int i = 2; i < a.length; i++) {
-                            combo[i - 2] = Byte.parseByte(a[i].trim());
-                        }
-                        say(mc, com.rlutility.modules.LocksExploitHandler.addManual(id, combo));
-                    } catch (NumberFormatException e) {
-                        say(mc, "\u00a7cAll arguments must be whole numbers.");
-                    }
-                });
-                return;
-            } else if (sub.equals("lockdiag")) {
-                mc.addScheduledTask(() -> {
-                    for (String line : com.rlutility.modules.LocksExploitHandler.diagnose()) {
-                        say(mc, line);
-                    }
-                });
-                return;
-            } else if (sub.equals("lockcrack")) {
-                final String arg = args.length > 1 ? args[1] : "start";
-                mc.addScheduledTask(() -> {
-                    if (arg.equalsIgnoreCase("stop")) {
-                        com.rlutility.modules.LockSeedCracker.stop();
-                        say(mc, "\u00a7eSeed search cancelled.");
-                        return;
-                    }
-                    if (arg.equalsIgnoreCase("status")) {
-                        long done = com.rlutility.modules.LockSeedCracker.getChecked();
-                        long total = com.rlutility.modules.LockSeedCracker.getTotal();
-                        say(mc, "\u00a76Seed crack: \u00a7f" + com.rlutility.modules.LockSeedCracker.getStatus());
-                        if (total > 0) {
-                            say(mc, "\u00a77  checked \u00a7f" + done + "\u00a77 / " + total
-                                    + " \u00a78(" + String.format("%.2f%%", 100.0 * done / total) + ")");
-                        }
-                        return;
-                    }
-                    com.rlutility.modules.LockSeedCracker.start();
-                });
-                return;
-            } else if (sub.equals("lockseed")) {
-                // /rlu lockseed <seed|status|clear>
-                final String arg = args.length > 1 ? args[1] : "status";
-                mc.addScheduledTask(() -> {
-                    if (arg.equalsIgnoreCase("clear")) {
-                        com.rlutility.modules.LockSeedSolver.clearSeed();
-                        say(mc, "\u00a7aLock seed cleared.");
-                        return;
-                    }
-                    if (arg.equalsIgnoreCase("status")) {
-                        say(mc, "\u00a76Lock seed: " + (com.rlutility.modules.LockSeedSolver.hasSeed()
-                                ? "\u00a7a" + com.rlutility.modules.LockSeedSolver.getSeed()
-                                : "\u00a77unknown"));
-                        say(mc, "\u00a77Cracked locks on file (used to verify a seed): \u00a7f"
-                                + com.rlutility.modules.LockSeedSolver.knownCount());
-                        say(mc, "\u00a78Combinations are a pure function of (lock id, length, world seed),");
-                        say(mc, "\u00a78so the right seed solves every lock on the server instantly.");
-                        return;
-                    }
-                    long seed;
-                    try {
-                        seed = Long.parseLong(arg.trim());
-                    } catch (NumberFormatException e) {
-                        // Minecraft treats a non-numeric seed as its string hash.
-                        seed = arg.hashCode();
-                        say(mc, "\u00a77Non-numeric seed - using String.hashCode() = " + seed);
-                    }
-                    if (com.rlutility.modules.LockSeedSolver.trySeed(seed)) {
-                        say(mc, "\u00a7aSeed accepted" + (com.rlutility.modules.LockSeedSolver.knownCount() > 0
-                                ? " and verified against " + com.rlutility.modules.LockSeedSolver.knownCount()
-                                  + " cracked lock(s)." : " (no cracked locks yet to verify against)."));
-                    } else {
-                        say(mc, "\u00a7cThat seed does not reproduce the locks already cracked - rejected.");
-                    }
-                });
-                return;
-            } else if (sub.equals("diag") || sub.equals("debug")) {
-                mc.addScheduledTask(() -> {
-                    for (String line : com.rlutility.modules.ReskillableHelper.diagnose()) {
-                        say(mc, line);
-                    }
-                });
-                return;
-            } else if (sub.equals("unlock")) {
+                                                } else if (sub.equals("unlock")) {
                 // Buys exactly the Reskillable levels the held item is missing.
                 mc.addScheduledTask(() -> say(mc, com.rlutility.modules.ReskillableHelper.unlockHeldItem()));
                 return;

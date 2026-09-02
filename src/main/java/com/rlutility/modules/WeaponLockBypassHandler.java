@@ -1,6 +1,7 @@
 package com.rlutility.modules;
 
 import com.mujmajnkraft.bettersurvival.integration.RLCombatCompat;
+import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.entity.Entity;
@@ -66,8 +67,6 @@ public class WeaponLockBypassHandler {
         Entity target = currentTarget(mc);
         if (target == null) return;
 
-        // Do not fight the triggerbot; it already dispatches its own packets.
-        if (FeatureConfig.autoTriggerbot) return;
 
         if (mc.player.getCooledAttackStrength(0.0F) < FeatureConfig.weaponBypassMinCharge) {
             return;
@@ -85,7 +84,6 @@ public class WeaponLockBypassHandler {
         if (cooldown > 0) cooldown--;
 
         if (!FeatureConfig.weaponPacketBypass || !FeatureConfig.weaponBypassHeldAttack) return;
-        if (FeatureConfig.autoTriggerbot) return;
 
         Minecraft mc = Minecraft.getMinecraft();
         if (mc.currentScreen != null || mc.player == null || mc.world == null) return;
@@ -117,14 +115,11 @@ public class WeaponLockBypassHandler {
             }
         }
 
-        // Optional extra: the raw packets. Known not to work alone, but harmless to stack.
+        // Optional extra: mod attack packets. Inlined here now that TriggerbotHandler is gone.
         if (FeatureConfig.bypassExtraPackets) {
-            try {
-                TriggerbotHandler.dispatchDirectAttackPacket(player, target);
-                how.append("packets[").append(TriggerbotHandler.lastDispatched).append("] ");
+            if (sendModPacket(target)) {
+                how.append("mod-packet ");
                 any = true;
-            } catch (Throwable t) {
-                how.append("packets-FAILED ");
             }
         }
 
@@ -140,6 +135,31 @@ public class WeaponLockBypassHandler {
         player.swingArm(EnumHand.MAIN_HAND);
         attacks++;
         lastResult = how.toString().trim() + " via " + reason;
+    }
+
+    /** Fire exactly one attack at a target using the configured dispatch. Reused by ClickAura. */
+    public static void attackOnce(EntityPlayerSP player, Entity target, String reason) {
+        attack(player, target, reason);
+    }
+
+    /** Best-effort mod attack packet; returns whether anything was sent. */
+    private static boolean sendModPacket(Entity target) {
+        if (ModCompat.hasRLCombat()) {
+            try {
+                Class<?> ph = Class.forName("bettercombat.mod.network.PacketHandler");
+                Object inst = ph.getField("instance").get(null);
+                Class<?> pk = Class.forName("bettercombat.mod.network.PacketMainhandAttack");
+                Object msg = pk.getConstructor(int.class).newInstance(target.getEntityId());
+                ph.getMethod("sendToServer", IMessage.class).invoke(inst, msg);
+                return true;
+            } catch (Throwable ignored) {}
+        }
+        Minecraft mc = Minecraft.getMinecraft();
+        if (mc.getConnection() != null) {
+            mc.getConnection().sendPacket(new net.minecraft.network.play.client.CPacketUseEntity(target));
+            return true;
+        }
+        return false;
     }
 
     private static Entity currentTarget(Minecraft mc) {

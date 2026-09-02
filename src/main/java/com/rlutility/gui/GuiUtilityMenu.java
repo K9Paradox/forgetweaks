@@ -189,6 +189,7 @@ public class GuiUtilityMenu extends GuiScreen {
     public void updateScreen() {
         caretTimer++;
         if (toastTicks > 0) toastTicks--;
+        if (saveFlash > 0) saveFlash--;
     }
 
     @Override
@@ -270,20 +271,6 @@ public class GuiUtilityMenu extends GuiScreen {
                     "buy", () -> announceResult(ReskillableHelper.unlockHeldItem())));
         }
 
-        if (com.rlutility.modules.LocksExploitHandler.isModLoaded()) {
-            rows.add(new ActionRow("Crack Lock World Seed",
-                    "Every lock combination is f(lock id, length, world seed) - one unknown for the "
-                            + "whole server. Brute forces the 32-bit space (covers text seeds, which are "
-                            + "String.hashCode) against locks you already cracked. Find it once and every "
-                            + "lock is instant. Needs one lock picked first.",
-                    com.rlutility.modules.LockSeedSolver.hasSeed() ? "known"
-                            : (com.rlutility.modules.LockSeedCracker.isRunning() ? "running" : "crack"),
-                    () -> {
-                        com.rlutility.modules.LockSeedCracker.start();
-                        mc.displayGuiScreen(null);
-                    }));
-        }
-
         if (QuestExploitHandler.isModLoaded()) {
             rows.add(new ActionRow("Quest Sweep",
                     "BetterQuesting's quest_action channel has no permission check, and its id array is "
@@ -359,11 +346,12 @@ public class GuiUtilityMenu extends GuiScreen {
 
         rows.add(new ActionRow("Save Configuration",
                 "Writes config/rlutility_features.cfg immediately.",
-                "save", () -> {
+                saveFlash > 0 ? "\u2714 saved" : "save", () -> {
                     FeatureConfig.saveConfig();
                     // Confirm in the footer AND in chat - previously this button gave no feedback.
-                    toast = "\u00a7aSaved to config/rlutility_features.cfg";
-                    toastTicks = 60;
+                    toast = "\u00a7a\u2714 Saved to config/rlutility_features.cfg";
+                    toastTicks = 70;
+                    saveFlash = 70;
                     announceResult("\u00a7aConfiguration saved.");
                 }));
     }
@@ -371,6 +359,8 @@ public class GuiUtilityMenu extends GuiScreen {
     /** Transient confirmation shown in the footer. */
     private static String toast = null;
     private static int toastTicks = 0;
+    /** Drives the checkmark that briefly replaces the Save row's chip. */
+    private static int saveFlash = 0;
 
     private void clampScroll() {
         int maxScroll = Math.max(0, rows.size() * (ROW_H + ROW_GAP) - contentHeight());

@@ -23,12 +23,10 @@ import com.rlutility.modules.FeatureConfig;
 import com.rlutility.modules.FirstAidHelper;
 import com.rlutility.modules.ItemMagnetHandler;
 import com.rlutility.modules.JesusHandler;
-import com.rlutility.modules.KillAuraHandler;
-import com.rlutility.modules.AttackMethodTester;
+import com.rlutility.modules.ClickAuraHandler;
 import com.rlutility.modules.DupeExploitHandler;
 import com.rlutility.modules.EnchantPreviewHandler;
 import com.rlutility.modules.ReskillableClientUnlock;
-import com.rlutility.modules.LocksExploitHandler;
 import com.rlutility.modules.QuestExploitHandler;
 import com.rlutility.modules.LevelUpExploitHandler;
 import com.rlutility.modules.XRayHandler;
@@ -40,7 +38,6 @@ import com.rlutility.modules.ReskillableHelper;
 import com.rlutility.modules.SimpleDifficultyHelper;
 import com.rlutility.modules.StepSpeedHandler;
 import com.rlutility.modules.TimerHandler;
-import com.rlutility.modules.TriggerbotHandler;
 import com.rlutility.modules.WeaponLockBypassHandler;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.settings.KeyBinding;
@@ -55,7 +52,7 @@ import org.lwjgl.input.Keyboard;
 public class ClientProxy extends CommonProxy {
 
     public static KeyBinding openGuiKey;
-    public static KeyBinding toggleKillAuraKey;
+    public static KeyBinding toggleClickAuraKey;
     public static KeyBinding toggleHudKey;
 
     @Override
@@ -63,17 +60,16 @@ public class ClientProxy extends CommonProxy {
         super.init();
 
         openGuiKey = new KeyBinding("key.rlutility.opengui", Keyboard.KEY_RSHIFT, "category.rlutility");
-        toggleKillAuraKey = new KeyBinding("key.rlutility.killaura", Keyboard.KEY_R, "category.rlutility");
+        toggleClickAuraKey = new KeyBinding("key.rlutility.killaura", Keyboard.KEY_R, "category.rlutility");
         toggleHudKey = new KeyBinding("key.rlutility.hud", Keyboard.KEY_H, "category.rlutility");
         ClientRegistry.registerKeyBinding(openGuiKey);
-        ClientRegistry.registerKeyBinding(toggleKillAuraKey);
+        ClientRegistry.registerKeyBinding(toggleClickAuraKey);
         ClientRegistry.registerKeyBinding(toggleHudKey);
 
         MinecraftForge.EVENT_BUS.register(this);
 
         // ---- server-authoritative combat / movement -------------------------
         MinecraftForge.EVENT_BUS.register(new AutoCritHandler());
-        MinecraftForge.EVENT_BUS.register(new KillAuraHandler());
         MinecraftForge.EVENT_BUS.register(new AntiKnockbackHandler());
         MinecraftForge.EVENT_BUS.register(new NoFallHandler());
         MinecraftForge.EVENT_BUS.register(new NoSlowdownHandler());
@@ -81,9 +77,8 @@ public class ClientProxy extends CommonProxy {
         MinecraftForge.EVENT_BUS.register(new JesusHandler());
         MinecraftForge.EVENT_BUS.register(new TimerHandler());
         MinecraftForge.EVENT_BUS.register(new MovementEventHandler());
-        MinecraftForge.EVENT_BUS.register(new TriggerbotHandler());
         MinecraftForge.EVENT_BUS.register(new WeaponLockBypassHandler());
-        MinecraftForge.EVENT_BUS.register(new AttackMethodTester());
+        MinecraftForge.EVENT_BUS.register(new ClickAuraHandler());
 
         // ---- server-authoritative inventory automation ----------------------
         MinecraftForge.EVENT_BUS.register(new FastTriageHandler());
@@ -96,7 +91,6 @@ public class ClientProxy extends CommonProxy {
         // ---- mod-channel exploits (server must run the mod, RLCraft does) ---
         MinecraftForge.EVENT_BUS.register(new AutoReforgerHandler());
         MinecraftForge.EVENT_BUS.register(new LocksHelper());
-        MinecraftForge.EVENT_BUS.register(new LocksExploitHandler());
         MinecraftForge.EVENT_BUS.register(new EnchantPreviewHandler());
         MinecraftForge.EVENT_BUS.register(new ItemMagnetHandler());
         MinecraftForge.EVENT_BUS.register(new FirstAidHelper());
@@ -135,10 +129,10 @@ public class ClientProxy extends CommonProxy {
         if (openGuiKey != null && openGuiKey.isPressed()) {
             mc.displayGuiScreen(new GuiUtilityMenu());
         }
-        if (toggleKillAuraKey != null && toggleKillAuraKey.isPressed()) {
-            FeatureConfig.killAura = !FeatureConfig.killAura;
+        if (toggleClickAuraKey != null && toggleClickAuraKey.isPressed()) {
+            FeatureConfig.clickAura = !FeatureConfig.clickAura;
             FeatureConfig.saveConfig();
-            announce(mc, "Kill Aura", FeatureConfig.killAura);
+            announce(mc, "Click Aura", FeatureConfig.clickAura);
         }
         if (toggleHudKey != null && toggleHudKey.isPressed()) {
             FeatureConfig.hudEnabled = !FeatureConfig.hudEnabled;

@@ -282,7 +282,7 @@ public class ReskillableHelper {
                 + " \u00a77(reverted " + ReskillableClientUnlock.getUnCancelCount() + " cancels)");
         out.add("  packet bypass: " + (FeatureConfig.weaponPacketBypass ? "\u00a7aon" : "\u00a7cOFF")
                 + " \u00a77(" + WeaponLockBypassHandler.getAttackCount() + " attacks, last sent: "
-                + TriggerbotHandler.lastDispatched + ")");
+                + WeaponLockBypassHandler.getLastResult() + ")");
 
         if (!MOD_LOADED) return out;
 

@@ -4,7 +4,6 @@ import com.rlutility.RLUtilityMod;
 import com.rlutility.modules.Feature;
 import com.rlutility.modules.FeatureConfig;
 import com.rlutility.modules.FeatureRegistry;
-import com.rlutility.modules.KillAuraHandler;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.FontRenderer;
@@ -93,7 +92,12 @@ public class HudOverlay extends Gui {
     }
 
     private void drawTargetInfo(Minecraft mc, FontRenderer fr, int y) {
-        Entity target = KillAuraHandler.currentTarget;
+        // Kill aura is gone; the HUD now reports whatever the crosshair is on.
+        Entity target = null;
+        net.minecraft.util.math.RayTraceResult hit = mc.objectMouseOver;
+        if (hit != null && hit.typeOfHit == net.minecraft.util.math.RayTraceResult.Type.ENTITY) {
+            target = hit.entityHit;
+        }
         if (!(target instanceof EntityLivingBase) || target.isDead) return;
 
         EntityLivingBase living = (EntityLivingBase) target;

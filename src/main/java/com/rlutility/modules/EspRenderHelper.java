@@ -15,6 +15,7 @@ import net.minecraft.entity.monster.IMob;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.inventory.IInventory;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraftforge.items.CapabilityItemHandler;
 import net.minecraft.tileentity.TileEntityChest;
 import net.minecraft.tileentity.TileEntityEnderChest;
 import net.minecraft.tileentity.TileEntityMobSpawner;
@@ -115,9 +116,7 @@ public class EspRenderHelper {
                     double x = pos.getX() - viewerX;
                     double y = pos.getY() - viewerY;
                     double z = pos.getZ() - viewerZ;
-                    RenderGlobal.drawSelectionBoundingBox(
-                            new AxisAlignedBB(x, y, z, x + 1.0D, y + 1.0D, z + 1.0D),
-                            color[0], color[1], color[2], 0.7F);
+                    drawStyled(new AxisAlignedBB(x, y, z, x + 1.0D, y + 1.0D, z + 1.0D), color, 0.7F);
 
                     if (FeatureConfig.espTracers) {
                         tracerTargets.add(new double[]{x + 0.5D, y + 0.5D, z + 0.5D, color[0], color[1], color[2]});
@@ -146,7 +145,7 @@ public class EspRenderHelper {
                             raw.minX + ix - viewerX, raw.minY + iy - viewerY, raw.minZ + iz - viewerZ,
                             raw.maxX + ix - viewerX, raw.maxY + iy - viewerY, raw.maxZ + iz - viewerZ);
 
-                    RenderGlobal.drawSelectionBoundingBox(bb, color[0], color[1], color[2], 0.8F);
+                    drawStyled(bb, color, 0.85F);
 
                     if (FeatureConfig.espTracers) {
                         tracerTargets.add(new double[]{
@@ -170,6 +169,99 @@ public class EspRenderHelper {
             GlStateManager.disableBlend();
             GlStateManager.popMatrix();
         }
+    }
+
+    /**
+     * Draws a highlight in the configured style.
+     *
+     * <p>0 = full box, 1 = corner brackets, 2 = translucent fill plus outline, 3 = flat outline on
+     * the ground. A true per-pixel model glow needs either a stencil pass or a shader hooked into
+     * the entity renderer; that is a much larger change and cannot be validated without running the
+     * game, so these are geometry-based styles that are safe to ship.</p>
+     */
+    private static void drawStyled(AxisAlignedBB bb, float[] color, float alpha) {
+        int style = FeatureConfig.espStyle;
+        float width = (float) Math.max(0.5D, Math.min(6.0D, FeatureConfig.espLineWidth));
+        GlStateManager.glLineWidth(width);
+
+        if (style == 2) {
+            drawFilled(bb, color, 0.18F * alpha);
+            RenderGlobal.drawSelectionBoundingBox(bb, color[0], color[1], color[2], alpha);
+            return;
+        }
+        if (style == 1) {
+            drawCorners(bb, color, alpha);
+            return;
+        }
+        if (style == 3) {
+            AxisAlignedBB flat = new AxisAlignedBB(bb.minX, bb.minY, bb.minZ,
+                    bb.maxX, bb.minY + 0.02D, bb.maxZ);
+            RenderGlobal.drawSelectionBoundingBox(flat, color[0], color[1], color[2], alpha);
+            return;
+        }
+        RenderGlobal.drawSelectionBoundingBox(bb, color[0], color[1], color[2], alpha);
+    }
+
+    /** Corner brackets: reads much cleaner than a full box when many targets overlap. */
+    private static void drawCorners(AxisAlignedBB bb, float[] color, float alpha) {
+        double lx = (bb.maxX - bb.minX) * 0.25D;
+        double ly = (bb.maxY - bb.minY) * 0.25D;
+        double lz = (bb.maxZ - bb.minZ) * 0.25D;
+
+        Tessellator tess = Tessellator.getInstance();
+        BufferBuilder buf = tess.getBuffer();
+        buf.begin(GL11.GL_LINES, DefaultVertexFormats.POSITION_COLOR);
+        for (int cx = 0; cx < 2; cx++) {
+            for (int cy = 0; cy < 2; cy++) {
+                for (int cz = 0; cz < 2; cz++) {
+                    double x = cx == 0 ? bb.minX : bb.maxX;
+                    double y = cy == 0 ? bb.minY : bb.maxY;
+                    double z = cz == 0 ? bb.minZ : bb.maxZ;
+                    double dx = cx == 0 ? lx : -lx;
+                    double dy = cy == 0 ? ly : -ly;
+                    double dz = cz == 0 ? lz : -lz;
+                    vertex(buf, x, y, z, color, alpha);
+                    vertex(buf, x + dx, y, z, color, alpha);
+                    vertex(buf, x, y, z, color, alpha);
+                    vertex(buf, x, y + dy, z, color, alpha);
+                    vertex(buf, x, y, z, color, alpha);
+                    vertex(buf, x, y, z + dz, color, alpha);
+                }
+            }
+        }
+        tess.draw();
+    }
+
+    private static void drawFilled(AxisAlignedBB bb, float[] color, float alpha) {
+        Tessellator tess = Tessellator.getInstance();
+        BufferBuilder buf = tess.getBuffer();
+        buf.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_COLOR);
+        double[][] faces = {
+                {bb.minX, bb.minY, bb.minZ, bb.maxX, bb.minY, bb.maxZ},
+                {bb.minX, bb.maxY, bb.minZ, bb.maxX, bb.maxY, bb.maxZ}
+        };
+        for (double[] f : faces) {
+            vertex(buf, f[0], f[1], f[2], color, alpha);
+            vertex(buf, f[3], f[1], f[2], color, alpha);
+            vertex(buf, f[3], f[4], f[5], color, alpha);
+            vertex(buf, f[0], f[4], f[5], color, alpha);
+        }
+        // Vertical faces
+        double[][] sides = {
+                {bb.minX, bb.minZ, bb.maxX, bb.minZ}, {bb.maxX, bb.minZ, bb.maxX, bb.maxZ},
+                {bb.maxX, bb.maxZ, bb.minX, bb.maxZ}, {bb.minX, bb.maxZ, bb.minX, bb.minZ}
+        };
+        for (double[] sd : sides) {
+            vertex(buf, sd[0], bb.minY, sd[1], color, alpha);
+            vertex(buf, sd[2], bb.minY, sd[3], color, alpha);
+            vertex(buf, sd[2], bb.maxY, sd[3], color, alpha);
+            vertex(buf, sd[0], bb.maxY, sd[1], color, alpha);
+        }
+        tess.draw();
+    }
+
+    private static void vertex(BufferBuilder buf, double x, double y, double z, float[] c, float a) {
+        buf.pos(x, y, z).color(c[0], c[1], c[2], a).endVertex();
     }
 
     private static void drawTracers(Minecraft mc, float partialTicks, List<double[]> targets) {
@@ -201,9 +293,7 @@ public class EspRenderHelper {
         if (FeatureConfig.espWaystones && te.getClass().getName().toLowerCase().contains("waystone")) return COLOR_WAYSTONE;
 
         // Anything with an inventory - catches modded chests, barrels, backpacks on stands, etc.
-        if (FeatureConfig.espAllContainers && te instanceof IInventory && ((IInventory) te).getSizeInventory() > 0) {
-            return COLOR_CHEST;
-        }
+        if (FeatureConfig.espAllContainers && isContainer(te)) return COLOR_CHEST;
         if (CUSTOM_BLOCKS.contains(FeatureConfig.espCustomBlocks, idOf(te))) return COLOR_CUSTOM;
         return null;
     }
@@ -219,11 +309,46 @@ public class EspRenderHelper {
         if (FeatureConfig.espHostiles && (entity instanceof IMob) && entity instanceof EntityLivingBase) return COLOR_HOSTILE;
         if (FeatureConfig.espItems && entity instanceof EntityItem) return COLOR_ITEM;
 
+        if (FeatureConfig.espAllContainers && isContainerEntity(entity)) return COLOR_CHEST;
+
         if (FeatureConfig.espModdedMobs && entity instanceof EntityLivingBase
                 && id != null && !id.startsWith("minecraft:")) {
             return COLOR_MODDED;
         }
         return null;
+    }
+
+    /**
+     * Anything that actually holds items. A plain "instanceof IInventory" missed a lot: modded
+     * chests expose their inventory only through the ITEM_HANDLER capability, and several have a
+     * size of zero until first opened.
+     */
+    private static boolean isContainer(TileEntity te) {
+        try {
+            if (te instanceof IInventory && ((IInventory) te).getSizeInventory() > 0) return true;
+            if (te.hasCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, null)) return true;
+            // Last resort: the block name. Catches barrels, crates, urns, lockers and similar.
+            String id = idOf(te);
+            if (id != null) {
+                String n = id.toLowerCase();
+                if (n.contains("chest") || n.contains("barrel") || n.contains("crate")
+                        || n.contains("urn") || n.contains("locker") || n.contains("safe")
+                        || n.contains("strongbox") || n.contains("shulker") || n.contains("sack")
+                        || n.contains("basket") || n.contains("box")) {
+                    return true;
+                }
+            }
+        } catch (Throwable ignored) {}
+        return false;
+    }
+
+    /** Entity-based containers: chest minecarts, chest boats, item frames and similar. */
+    private static boolean isContainerEntity(Entity entity) {
+        try {
+            if (entity instanceof net.minecraft.inventory.IInventory) return true;
+            if (entity.hasCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, null)) return true;
+        } catch (Throwable ignored) {}
+        return false;
     }
 
     private static boolean isBoss(Entity entity) {
