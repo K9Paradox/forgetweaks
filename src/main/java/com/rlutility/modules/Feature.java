@@ -13,6 +13,8 @@ public class Feature {
     public enum Category {
         COMBAT("Combat"),
         MOVEMENT("Movement"),
+        SURVIVAL("Survival"),
+        SKILLS("Skills"),
         EXPLOITS("Exploits"),
         VISUALS("Visuals"),
         HUD("HUD"),

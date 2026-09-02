@@ -76,9 +76,9 @@ public final class FeatureConfig {
     /** Highlight anything with an inventory, not just vanilla chests. */
     public static boolean espAllContainers = false;
     /** Extra entity ids to highlight, comma separated. Supports "iceandfire:*" prefix matching. */
-    public static String espCustomEntities = "iceandfire:dragon_fire,iceandfire:dragon_ice,iceandfire:cyclops,iceandfire:hydra,iceandfire:dread_lich,iceandfire:gorgon";
+    public static String espCustomEntities = "iceandfire:dragon_fire,iceandfire:dragon_ice,iceandfire:cyclops,iceandfire:hydra,iceandfire:dread_lich,iceandfire:gorgon,*dragon_skull*,*dragonskull*,*dragon_skeleton*";
     /** Extra block ids to highlight as containers/points of interest. */
-    public static String espCustomBlocks = "waystones:waystone,minecraft:end_portal_frame,minecraft:beacon,iceandfire:dragonforge_fire_core,iceandfire:dragonforge_ice_core";
+    public static String espCustomBlocks = "waystones:waystone,minecraft:end_portal_frame,minecraft:beacon,iceandfire:dragonforge_fire_core,iceandfire:dragonforge_ice_core,*dragon_skull*,*dragonskull*,*dragonegg*";
 
     // ---------------------------------------------------------------- XRay
     public static boolean xrayEnabled = false;

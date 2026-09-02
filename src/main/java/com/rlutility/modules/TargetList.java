@@ -22,6 +22,7 @@ public final class TargetList {
     private String cachedRaw = null;
     private Set<String> exact = Collections.emptySet();
     private Set<String> prefixes = Collections.emptySet();
+    private Set<String> contains = Collections.emptySet();
 
     public TargetList(String label) {
         this.label = label;
@@ -37,26 +38,38 @@ public final class TargetList {
 
         Set<String> newExact = new LinkedHashSet<>();
         Set<String> newPrefixes = new LinkedHashSet<>();
+        Set<String> newContains = new LinkedHashSet<>();
         for (String token : raw.split(",")) {
-            String entry = normalize(token);
+            String entry = normalizeKeepWildcards(token);
             if (entry.isEmpty()) continue;
-            if (entry.endsWith("*")) {
-                newPrefixes.add(entry.substring(0, entry.length() - 1));
+            // "*skull*" matches anywhere in the id, which is how you catch every dragon skull
+            // variant without knowing each registry name.
+            if (entry.length() > 2 && entry.startsWith("*") && entry.endsWith("*")) {
+                newContains.add(entry.substring(1, entry.length() - 1));
+            } else if (entry.endsWith("*")) {
+                newPrefixes.add(normalize(entry.substring(0, entry.length() - 1)));
             } else {
-                newExact.add(entry);
+                newExact.add(normalize(entry));
             }
         }
         exact = newExact;
         prefixes = newPrefixes;
+        contains = newContains;
         cachedRaw = raw;
     }
 
     private static String normalize(String token) {
         String entry = token.trim().toLowerCase();
         if (entry.isEmpty()) return "";
-        // "diamond_ore" and "minecraft:diamond_ore" should mean the same thing.
-        if (entry.indexOf(':') < 0) entry = "minecraft:" + entry;
+        // "diamond_ore" and "minecraft:diamond_ore" should mean the same thing. Wildcard entries
+        // are left alone - "*skull*" must not become "minecraft:*skull*".
+        if (entry.indexOf(':') < 0 && entry.indexOf('*') < 0) entry = "minecraft:" + entry;
         return entry;
+    }
+
+    /** Trim and lower-case without adding a namespace, so wildcards survive. */
+    private static String normalizeKeepWildcards(String token) {
+        return token.trim().toLowerCase();
     }
 
     public boolean contains(String raw, String id) {
@@ -67,17 +80,20 @@ public final class TargetList {
         for (String prefix : prefixes) {
             if (key.startsWith(prefix)) return true;
         }
+        for (String needle : contains) {
+            if (key.contains(needle)) return true;
+        }
         return false;
     }
 
     public boolean isEmpty(String raw) {
         refresh(raw);
-        return exact.isEmpty() && prefixes.isEmpty();
+        return exact.isEmpty() && prefixes.isEmpty() && contains.isEmpty();
     }
 
     public int size(String raw) {
         refresh(raw);
-        return exact.size() + prefixes.size();
+        return exact.size() + prefixes.size() + contains.size();
     }
 
     /** Entries in declaration order, for the GUI list. */
@@ -85,6 +101,7 @@ public final class TargetList {
         refresh(raw);
         java.util.List<String> out = new java.util.ArrayList<>(exact);
         for (String prefix : prefixes) out.add(prefix + "*");
+        for (String needle : contains) out.add("*" + needle + "*");
         return out;
     }
 
@@ -93,7 +110,7 @@ public final class TargetList {
     /** Returns the new raw string with {@code id} appended, or the original if already present. */
     public static String add(String raw, String id) {
         if (id == null || id.trim().isEmpty()) return raw;
-        String entry = normalize(id);
+        String entry = normalize(normalizeKeepWildcards(id));
         if (raw == null) raw = "";
         for (String token : raw.split(",")) {
             if (normalize(token).equals(entry)) return raw;

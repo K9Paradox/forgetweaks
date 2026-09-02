@@ -74,13 +74,13 @@ public final class FeatureRegistry {
                 Category.COMBAT, Compat.MODDED,
                 () -> FeatureConfig.firstAidAutoHeal, v -> FeatureConfig.firstAidAutoHeal = v);
         f("Auto Armor", "Equips the strongest armour in your inventory with real inventory clicks.",
-                Category.COMBAT, Compat.SERVER,
+                Category.SURVIVAL, Compat.SERVER,
                 () -> FeatureConfig.autoArmor, v -> FeatureConfig.autoArmor = v);
         f("Auto Eat", "Eats real food (never rotten/poisonous) when hunger drops, then restores your slot.",
-                Category.COMBAT, Compat.SERVER,
+                Category.SURVIVAL, Compat.SERVER,
                 () -> FeatureConfig.autoEat, v -> FeatureConfig.autoEat = v);
         f("Auto Respawn", "Instantly sends the respawn packet on the death screen.",
-                Category.COMBAT, Compat.SERVER,
+                Category.SURVIVAL, Compat.SERVER,
                 () -> FeatureConfig.autoRespawn, v -> FeatureConfig.autoRespawn = v);
 
         s("Auto Eat At", "Hunger level that triggers Auto Eat.", Category.COMBAT,
@@ -134,13 +134,13 @@ public final class FeatureRegistry {
                 Category.EXPLOITS, Compat.SERVER,
                 () -> FeatureConfig.fastMine, v -> FeatureConfig.fastMine = v);
         f("Auto Hydrate", "Drinks through SimpleDifficulty's channel before you ever go thirsty.",
-                Category.EXPLOITS, Compat.MODDED,
+                Category.SURVIVAL, Compat.MODDED,
                 () -> FeatureConfig.simpleDifficultyAutoHydrate, v -> FeatureConfig.simpleDifficultyAutoHydrate = v);
         f("Item Vacuum", "Pulls nearby drops in. Authoritative only when ItemPhysic is installed.",
                 Category.EXPLOITS, Compat.MODDED,
                 () -> FeatureConfig.clientItemVacuum, v -> FeatureConfig.clientItemVacuum = v);
         f("Debuff Neutralizer", "Strips screen-shake and nuisance debuffs from your client render.",
-                Category.EXPLOITS, Compat.LOCAL,
+                Category.SURVIVAL, Compat.LOCAL,
                 () -> FeatureConfig.clientDebuffNeutralizer, v -> FeatureConfig.clientDebuffNeutralizer = v);
 
         s("Loot Delay", "Ticks between each shift-click. Lower is faster but noisier.", Category.EXPLOITS,
@@ -166,7 +166,7 @@ public final class FeatureRegistry {
         f("Client Lock Un-cancel", "REQUIRED for locked tools. Reskillable runs on your client too and "
                 + "cancels mining/interaction locally, so the packet never even reaches the server. "
                 + "This reverts that. The server still decides the outcome.",
-                Category.COMBAT, Compat.LOCAL,
+                Category.SKILLS, Compat.LOCAL,
                 () -> FeatureConfig.reskillableBypass, v -> FeatureConfig.reskillableBypass = v);
 
         f("Packet Attack Bypass", "THE weapon lock fix. Attacks via RLCombat/Spartan/Ice&Fire attack "
@@ -207,9 +207,9 @@ public final class FeatureRegistry {
                 Category.COMBAT, Compat.SERVER,
                 () -> FeatureConfig.bypassExtraPackets, v -> FeatureConfig.bypassExtraPackets = v);
         f("Reskillable Auto-Buy", "Automatically spend XP levels to unlock the item you are holding.",
-                Category.TOOLS, Compat.MODDED,
+                Category.SKILLS, Compat.MODDED,
                 () -> FeatureConfig.reskillableAutoBuy, v -> FeatureConfig.reskillableAutoBuy = v);
-        s("XP Reserve", "Never spend below this many XP levels when auto-buying.", Category.TOOLS,
+        s("XP Reserve", "Never spend below this many XP levels when auto-buying.", Category.SKILLS,
                 () -> FeatureConfig.reskillableXpReserve + " lv",
                 d -> FeatureConfig.reskillableXpReserve = (int) clamp(FeatureConfig.reskillableXpReserve + d, 0, 100));
 
