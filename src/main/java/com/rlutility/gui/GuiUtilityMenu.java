@@ -279,6 +279,16 @@ public class GuiUtilityMenu extends GuiScreen {
         }
 
         addGrouped(FeatureRegistry.byCategory(selectedCategory));
+
+        // Action rows live in the tab they belong to. They used to be dumped into Tools regardless,
+        // which is what made that tab a dumping ground of unrelated editors.
+        if (selectedCategory == Feature.Category.VISUALS) {
+            buildVisualActionRows();
+        } else if (selectedCategory == Feature.Category.SKILLS) {
+            buildSkillActionRows();
+        } else if (selectedCategory == Feature.Category.EXPLOITS) {
+            buildExploitActionRows();
+        }
         for (FeatureRegistry.Setting s : FeatureRegistry.settingsFor(selectedCategory)) rows.add(new SettingRow(s));
         clampScroll();
     }
@@ -304,9 +314,29 @@ public class GuiUtilityMenu extends GuiScreen {
         }
     }
 
-    private void buildToolsRows() {
-        addGrouped(FeatureRegistry.byCategory(Feature.Category.TOOLS));
 
+    private void buildVisualActionRows() {
+        rows.add(new ActionRow("ESP Categories",
+                "One table for every ESP category: enable, style and colour side by side. Replaces "
+                        + "the eleven separate style rows that were crowding this tab.",
+                EspRenderHelper.Kind.values().length + " types",
+                () -> mc.displayGuiScreen(new GuiEspConfig(this))));
+        rows.add(new ActionRow("Edit ESP Entities",
+                "Extra mobs to outline, on top of the category toggles. Look at a creature and add it.",
+                EspRenderHelper.customEntities().size() + " entities", () -> mc.displayGuiScreen(new GuiTargetListEditor(
+                        this, "ESP Entities",
+                        () -> FeatureConfig.espCustomEntities,
+                        v -> FeatureConfig.espCustomEntities = v,
+                        GuiUtilityMenu::allEntityIds,
+                        EspRenderHelper::lookingAtId))));
+        rows.add(new ActionRow("Edit ESP Blocks",
+                "Extra blocks and containers to outline, such as waystones or modded chests.",
+                EspRenderHelper.customBlocks().size() + " blocks", () -> mc.displayGuiScreen(new GuiTargetListEditor(
+                        this, "ESP Blocks",
+                        () -> FeatureConfig.espCustomBlocks,
+                        v -> FeatureConfig.espCustomBlocks = v,
+                        GuiUtilityMenu::allBlockIds,
+                        XRayHandler::lookingAtBlockId))));
         rows.add(new ActionRow("Edit XRay Blocks",
                 "Pick which blocks XRay highlights. Add the block you are looking at, browse the full "
                         + "registry, or type an id. Wildcards like \"iceandfire:*\" work.",
@@ -316,87 +346,16 @@ public class GuiUtilityMenu extends GuiScreen {
                         v -> { FeatureConfig.xrayBlocks = v; XRayHandler.forceRescan(); },
                         GuiUtilityMenu::allBlockIds,
                         XRayHandler::lookingAtBlockId))));
+    }
 
-        rows.add(new ActionRow("ESP Categories",
-                "One table for every ESP category: enable, style and colour side by side. Replaces "
-                        + "the eleven separate style rows that were crowding this tab.",
-                EspRenderHelper.Kind.values().length + " types",
-                () -> mc.displayGuiScreen(new GuiEspConfig(this))));
-
-        rows.add(new ActionRow("Edit ESP Entities",
-                "Extra mobs to outline, on top of the category toggles. Look at a creature and add it.",
-                EspRenderHelper.customEntities().size() + " entities", () -> mc.displayGuiScreen(new GuiTargetListEditor(
-                        this, "ESP Entities",
-                        () -> FeatureConfig.espCustomEntities,
-                        v -> FeatureConfig.espCustomEntities = v,
-                        GuiUtilityMenu::allEntityIds,
-                        EspRenderHelper::lookingAtId))));
-
-        rows.add(new ActionRow("Edit ESP Blocks",
-                "Extra blocks and containers to outline, such as waystones or modded chests.",
-                EspRenderHelper.customBlocks().size() + " blocks", () -> mc.displayGuiScreen(new GuiTargetListEditor(
-                        this, "ESP Blocks",
-                        () -> FeatureConfig.espCustomBlocks,
-                        v -> FeatureConfig.espCustomBlocks = v,
-                        GuiUtilityMenu::allBlockIds,
-                        XRayHandler::lookingAtBlockId))));
-
-        rows.add(new ActionRow("Magnet Whitelist",
-                "When non-empty, only these items are pulled. Leave empty to pull everything.",
-                "edit", () -> mc.displayGuiScreen(new GuiTargetListEditor(
-                        this, "Magnet Whitelist",
-                        () -> FeatureConfig.magnetWhitelist,
-                        v -> FeatureConfig.magnetWhitelist = v,
-                        GuiUtilityMenu::allItemIds, () -> null))));
-
-        rows.add(new ActionRow("Magnet Blacklist",
-                "Items the magnet always ignores, so your inventory stops filling with junk.",
-                "edit", () -> mc.displayGuiScreen(new GuiTargetListEditor(
-                        this, "Magnet Blacklist",
-                        () -> FeatureConfig.magnetBlacklist,
-                        v -> FeatureConfig.magnetBlacklist = v,
-                        GuiUtilityMenu::allItemIds, () -> null))));
-
-        if (ReskillableHelper.isModLoaded()) {
+    private void buildSkillActionRows() {
             rows.add(new ActionRow("Unlock Held Item",
                     "Buys exactly the Reskillable levels the item in your hand is missing. This spends "
                             + "real XP because the server validates every level-up - there is no free path.",
                     "buy", () -> announceResult(ReskillableHelper.unlockHeldItem())));
-        }
-
-        if (com.rlutility.modules.TrinketRaceHandler.isAvailable()) {
-            rows.add(new ActionRow("Trinkets: Set Race",
-                    "SelectRacePacket only checks null/none/blacklist. If the server enables the race "
-                            + "selection menu the authorization check is short-circuited entirely; even "
-                            + "when it is not, the authorization records THAT you may change race, never "
-                            + "which one - so any pending authorization redeems for any race. "
-                            + "Use /rlu race <race> [element].",
-                    "list", () -> {
-                        announceResult("\u00a76Races: \u00a7f" + String.join(", ",
-                                com.rlutility.modules.TrinketRaceHandler.listNames()));
-                        announceResult("\u00a77Apply with /rlu race <race> [element]");
-                        mc.displayGuiScreen(null);
-                    }));
-        }
-
-        if (QuestExploitHandler.isModLoaded()) {
-            rows.add(new ActionRow("Quest Sweep",
-                    "BetterQuesting's quest_action channel has no permission check, and its id array is "
-                            + "client supplied. Runs a detection pass over every quest, then claims what "
-                            + "became claimable. Rewards you already qualify for only - claim is validated.",
-                    "run", QuestExploitHandler::sweepAll));
-        }
-
-        if (DupeExploitHandler.isModLoaded()) {
-            rows.add(new ActionRow("Desync Dupe",
-                    "Guided save-abort dupe. Relog for a clean rollback point, arm, bank your items, relog.",
-                    DupeExploitHandler.isArmed() ? "ARMED" : "start", () -> {
-                        DupeExploitHandler.begin();
-                        mc.displayGuiScreen(null);
-                    }));
-        }
-
-        byte spec = LevelUpExploitHandler.currentSpecialization();
+        rows.add(new ActionRow("Skill Tree Editor",
+                "Per-skill Level Up! 2 editor.",
+                "open", () -> this.mc.displayGuiScreen(new GuiLevelUpConfig(this))));
         rows.add(new ActionRow("Level Up! 2 Specialization",
                 "Free class change - the server only charges the reclass cost when the client asks it to. "
                         + "Left click cycles Mining / Crafting / Combat.",
@@ -406,22 +365,6 @@ public class GuiUtilityMenu extends GuiScreen {
                 rebuildRows();
             }
         });
-
-        rows.add(new ActionRow("Reforge Target", "Quality that Auto Reforge stops rolling at.",
-                FeatureConfig.targetQuality, () -> {
-            String[] presets = AutoReforgerHandler.QUALITY_PRESETS;
-            int next = 0;
-            for (int i = 0; i < presets.length; i++) {
-                if (presets[i].equals(FeatureConfig.targetQuality)) {
-                    next = (i + 1) % presets.length;
-                    break;
-                }
-            }
-            FeatureConfig.targetQuality = presets[next];
-            FeatureConfig.saveConfig();
-            rebuildRows();
-        }));
-
         rows.add(new ActionRow("Level Up! 2 Target Level",
                 "Level applied to every skill by the button below. 0 means each skill's own cap. Left click +1, right click -1.",
                 String.valueOf(FeatureConfig.customLevelTarget), () -> {
@@ -439,19 +382,71 @@ public class GuiUtilityMenu extends GuiScreen {
                 }
             }
         });
-
         rows.add(new ActionRow("Apply Level To All Skills",
                 "Sends the Level Up! 2 skill packet with button=-1 and levelSpend=0, so the server charges nothing.",
                 "run", () -> LevelUpExploitHandler.setAllSkillsLevel(FeatureConfig.customLevelTarget)));
-
         rows.add(new ActionRow("Apply Safe Preset",
                 "Level Up! 2 preset that skips the skills known to break movement.",
                 "run", LevelUpExploitHandler::applySafePreset));
+    }
 
-        rows.add(new ActionRow("Skill Tree Editor",
-                "Per-skill Level Up! 2 editor.",
-                "open", () -> this.mc.displayGuiScreen(new GuiLevelUpConfig(this))));
+    private void buildExploitActionRows() {
+            rows.add(new ActionRow("Quest Sweep",
+                    "BetterQuesting's quest_action channel has no permission check, and its id array is "
+                            + "client supplied. Runs a detection pass over every quest, then claims what "
+                            + "became claimable. Rewards you already qualify for only - claim is validated.",
+                    "run", QuestExploitHandler::sweepAll));
+            rows.add(new ActionRow("Trinkets: Set Race",
+                    "SelectRacePacket only checks null/none/blacklist. If the server enables the race "
+                            + "selection menu the authorization check is short-circuited entirely; even "
+                            + "when it is not, the authorization records THAT you may change race, never "
+                            + "which one - so any pending authorization redeems for any race. "
+                            + "Use /rlu race <race> [element].",
+                    "list", () -> {
+                        announceResult("\u00a76Races: \u00a7f" + String.join(", ",
+                                com.rlutility.modules.TrinketRaceHandler.listNames()));
+                        announceResult("\u00a77Apply with /rlu race <race> [element]");
+                        mc.displayGuiScreen(null);
+                    }));
+            rows.add(new ActionRow("Desync Dupe",
+                    "Guided save-abort dupe. Relog for a clean rollback point, arm, bank your items, relog.",
+                    DupeExploitHandler.isArmed() ? "ARMED" : "start", () -> {
+                        DupeExploitHandler.begin();
+                        mc.displayGuiScreen(null);
+                    }));
+        rows.add(new ActionRow("Reforge Target", "Quality that Auto Reforge stops rolling at.",
+                FeatureConfig.targetQuality, () -> {
+            String[] presets = AutoReforgerHandler.QUALITY_PRESETS;
+            int next = 0;
+            for (int i = 0; i < presets.length; i++) {
+                if (presets[i].equals(FeatureConfig.targetQuality)) {
+                    next = (i + 1) % presets.length;
+                    break;
+                }
+            }
+            FeatureConfig.targetQuality = presets[next];
+            FeatureConfig.saveConfig();
+            rebuildRows();
+        }));
+    }
 
+    private void buildToolsRows() {
+        addGrouped(FeatureRegistry.byCategory(Feature.Category.TOOLS));
+
+        rows.add(new ActionRow("Magnet Whitelist",
+                "When non-empty, only these items are pulled. Leave empty to pull everything.",
+                "edit", () -> mc.displayGuiScreen(new GuiTargetListEditor(
+                        this, "Magnet Whitelist",
+                        () -> FeatureConfig.magnetWhitelist,
+                        v -> FeatureConfig.magnetWhitelist = v,
+                        GuiUtilityMenu::allItemIds, () -> null))));
+        rows.add(new ActionRow("Magnet Blacklist",
+                "Items the magnet always ignores, so your inventory stops filling with junk.",
+                "edit", () -> mc.displayGuiScreen(new GuiTargetListEditor(
+                        this, "Magnet Blacklist",
+                        () -> FeatureConfig.magnetBlacklist,
+                        v -> FeatureConfig.magnetBlacklist = v,
+                        GuiUtilityMenu::allItemIds, () -> null))));
         rows.add(new ActionRow("Save Configuration",
                 "Writes config/rlutility_features.cfg immediately.",
                 saveFlash > 0 ? "\u2714 saved" : "save", () -> {
@@ -515,13 +510,22 @@ public class GuiUtilityMenu extends GuiScreen {
     }
 
     private void clampScroll() {
-        int maxScroll = Math.max(0, rows.size() * (ROW_H + ROW_GAP) - contentHeight());
+        // One row-gap of slack so the last row clears the bottom edge rather than touching it.
+        int maxScroll = Math.max(0, rows.size() * (ROW_H + ROW_GAP) - contentHeight() + ROW_GAP + 2);
         if (scroll > maxScroll) scroll = maxScroll;
         if (scroll < 0) scroll = 0;
     }
 
+    /**
+     * Must match drawContent's viewport exactly.
+     *
+     * <p>This used to return 4px more than the real viewport, so maxScroll always stopped 4px
+     * short and the final row stayed permanently clipped. Combined with the rule that a partially
+     * visible row is not clickable, that made the last entry of every tab dead - which is why the
+     * Save Configuration button never appeared to respond.</p>
+     */
     private int contentHeight() {
-        return PANEL_H - HEADER_H - FOOTER_H - 8;
+        return (PANEL_H - FOOTER_H - 6) - (HEADER_H + 6);
     }
 
     // ------------------------------------------------------------------ render
