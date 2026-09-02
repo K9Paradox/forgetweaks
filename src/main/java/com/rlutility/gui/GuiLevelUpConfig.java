@@ -23,13 +23,15 @@ import java.util.List;
 public class GuiLevelUpConfig extends GuiScreen {
 
     private static final int PANEL_W = 440;
-    private static final int PANEL_H = 272;
-    private static final int MAX_VISIBLE = 6;
+    private static final int PANEL_H = 300;
+    private static final int MAX_VISIBLE = 8;
     private static final int ROW_H = 24;
 
     private final GuiScreen parent;
     private int selectedTree = 0; // 0: All, 1: Mining, 2: Crafting, 3: Combat
     private int scrollOffset = 0;
+    /** Filters the 26-skill list; typing goes straight here, no click-to-focus needed. */
+    private String search = "";
     private final List<SkillEntry> currentEntries = new ArrayList<>();
 
     public static class SkillEntry {
@@ -72,6 +74,11 @@ public class GuiLevelUpConfig extends GuiScreen {
                 String rawName = skill.getSkillName();
                 String transKey = rawName + ".name";
                 String name = I18n.hasKey(transKey) ? I18n.format(transKey) : rawName.replace("levelup:", "");
+                if (!search.isEmpty()
+                        && !name.toLowerCase().contains(search.toLowerCase())
+                        && !rawName.toLowerCase().contains(search.toLowerCase())) {
+                    continue;
+                }
                 currentEntries.add(new SkillEntry(rawName, name, type, skill.getMaxLevel()));
             }
         } catch (Throwable ignored) {}
@@ -95,8 +102,11 @@ public class GuiLevelUpConfig extends GuiScreen {
             this.buttonList.add(b);
         }
         this.buttonList.add(new GuiButton(50, startX + 350, startY + 28, 80, 18, TextFormatting.GREEN + "Max Tab"));
+        // Seed the plan from your real levels so a send only changes what you edited.
+        this.buttonList.add(new GuiButton(51, startX + 10, startY + 48, 96, 16,
+                TextFormatting.GRAY + "Copy Current"));
 
-        int listStartY = startY + 52;
+        int listStartY = startY + 68;
         for (int i = 0; i < MAX_VISIBLE; i++) {
             int entryIndex = scrollOffset + i;
             if (entryIndex >= currentEntries.size()) break;
@@ -129,7 +139,7 @@ public class GuiLevelUpConfig extends GuiScreen {
         }
 
         // Exploit options row
-        int optY = startY + 52 + MAX_VISIBLE * ROW_H + 6;
+        int optY = startY + 68 + MAX_VISIBLE * ROW_H + 6;
         byte spec = LevelUpExploitHandler.currentSpecialization();
         this.buttonList.add(new GuiButton(74, startX + 10, optY, 118, 20,
                 TextFormatting.AQUA + "Class: " + TextFormatting.WHITE + LevelUpExploitHandler.className(spec)));
@@ -166,6 +176,13 @@ public class GuiLevelUpConfig extends GuiScreen {
             case 50:
                 for (SkillEntry entry : currentEntries) {
                     LevelUpExploitHandler.setSkillLevel(entry.skillName, entry.defaultMaxLevel);
+                }
+                rebuildButtons();
+                return;
+            case 51:
+                for (SkillEntry entry : currentEntries) {
+                    LevelUpExploitHandler.setSkillLevel(entry.skillName,
+                            LevelUpExploitHandler.getCurrentLevel(entry.skillName));
                 }
                 rebuildButtons();
                 return;
@@ -238,6 +255,27 @@ public class GuiLevelUpConfig extends GuiScreen {
     }
 
     @Override
+    protected void keyTyped(char typedChar, int keyCode) throws IOException {
+        if (keyCode == org.lwjgl.input.Keyboard.KEY_BACK) {
+            if (!search.isEmpty()) {
+                search = search.substring(0, search.length() - 1);
+                scrollOffset = 0;
+                rebuildSkillsList();
+                rebuildButtons();
+            }
+            return;
+        }
+        if (typedChar >= ' ' && typedChar != 127 && search.length() < 24) {
+            search += typedChar;
+            scrollOffset = 0;
+            rebuildSkillsList();
+            rebuildButtons();
+            return;
+        }
+        super.keyTyped(typedChar, keyCode);
+    }
+
+    @Override
     public void handleMouseInput() throws IOException {
         super.handleMouseInput();
         int dWheel = org.lwjgl.input.Mouse.getEventDWheel();
@@ -259,11 +297,30 @@ public class GuiLevelUpConfig extends GuiScreen {
         drawRect(startX, startY, startX + PANEL_W, startY + PANEL_H, 0xD012161E);
         drawRect(startX + 2, startY + 2, startX + PANEL_W - 2, startY + 24, 0xEE1E2430);
 
+        // Count how many skills the plan would actually change, so "Send" is never a mystery.
+        int changed = 0;
+        for (SkillEntry e : currentEntries) {
+            if (LevelUpExploitHandler.getPlannedLevel(e.skillName)
+                    != LevelUpExploitHandler.getCurrentLevel(e.skillName)) {
+                changed++;
+            }
+        }
         String title = TextFormatting.GOLD + "" + TextFormatting.BOLD + "Level Up! 2 Skill Editor"
-                + TextFormatting.DARK_GRAY + " | " + TextFormatting.WHITE + "0-XP skill packet";
+                + TextFormatting.DARK_GRAY + " | " + TextFormatting.WHITE + "0-XP skill packet"
+                + TextFormatting.DARK_GRAY + " | "
+                + (changed > 0 ? TextFormatting.GREEN + "" + changed + " change(s) pending"
+                               : TextFormatting.GRAY + "no changes");
         drawCenteredString(this.fontRenderer, title, this.width / 2, startY + 8, 0xFFFFFF);
 
-        int listStartY = startY + 52;
+        // Search field
+        int sx = startX + 112;
+        drawRect(sx, startY + 48, startX + PANEL_W - 10, startY + 64, 0x22FFFFFF);
+        this.fontRenderer.drawStringWithShadow(search.isEmpty()
+                        ? TextFormatting.DARK_GRAY + "type to filter skills..."
+                        : TextFormatting.WHITE + search,
+                sx + 5, startY + 52, 0xFFFFFF);
+
+        int listStartY = startY + 68;
         for (int i = 0; i < MAX_VISIBLE; i++) {
             int entryIndex = scrollOffset + i;
             if (entryIndex >= currentEntries.size()) break;
