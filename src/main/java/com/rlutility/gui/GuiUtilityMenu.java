@@ -126,6 +126,10 @@ public class GuiUtilityMenu extends GuiScreen {
             super(label, null);
         }
 
+        @Override void click(int button) {
+            // Headers are inert; selectable() already stops clicks reaching here.
+        }
+
         @Override boolean selectable() {
             return false;
         }
