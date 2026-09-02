@@ -28,7 +28,7 @@ public class CommandRLUtility extends CommandBase {
 
     @Override
     public String getUsage(ICommandSender sender) {
-        return "/rlu | diag | race | mods | level <n> | tree <t> <n> | safe | max | class <t> | revert | xray [block|here] | unlock | buy <skill> [n]";
+        return "/rlu | diag | id | race | mods | level <n> | tree <t> <n> | safe | max | class <t> | revert | xray [block|here] | unlock | buy <skill> [n]";
     }
 
     @Override
@@ -131,6 +131,50 @@ public class CommandRLUtility extends CommandBase {
                         FeatureConfig.saveConfig();
                         com.rlutility.modules.XRayHandler.forceRescan();
                         say(mc, "\u00a7fXRay " + (FeatureConfig.xrayEnabled ? "\u00a7aENABLED" : "\u00a7cDISABLED"));
+                    }
+                });
+                return;
+            } else if (sub.equals("id") || sub.equals("lookingat")) {
+                // Prints the registry id and NBT of whatever you are looking at or holding, so an
+                // ESP entry can be added from the real id instead of a guessed one.
+                mc.addScheduledTask(() -> {
+                    net.minecraft.util.math.RayTraceResult hit = mc.objectMouseOver;
+                    boolean found = false;
+                    if (hit != null && hit.entityHit != null) {
+                        net.minecraft.util.ResourceLocation key =
+                                net.minecraft.entity.EntityList.getKey(hit.entityHit);
+                        say(mc, "\u00a76Entity: \u00a7f" + key + " \u00a78(" + hit.entityHit.getName() + ")");
+                        found = true;
+                    }
+                    if (hit != null && hit.typeOfHit == net.minecraft.util.math.RayTraceResult.Type.BLOCK
+                            && hit.getBlockPos() != null) {
+                        net.minecraft.block.state.IBlockState st = mc.world.getBlockState(hit.getBlockPos());
+                        say(mc, "\u00a76Block: \u00a7f" + st.getBlock().getRegistryName());
+                        net.minecraft.tileentity.TileEntity te = mc.world.getTileEntity(hit.getBlockPos());
+                        if (te != null) {
+                            net.minecraft.nbt.NBTTagCompound tag =
+                                    te.writeToNBT(new net.minecraft.nbt.NBTTagCompound());
+                            String text = tag.toString();
+                            say(mc, "\u00a77  NBT: \u00a7f"
+                                    + (text.length() > 260 ? text.substring(0, 260) + "..." : text));
+                        }
+                        found = true;
+                    }
+                    net.minecraft.item.ItemStack held = mc.player.getHeldItemMainhand();
+                    if (held != null && !held.isEmpty()) {
+                        say(mc, "\u00a76Held: \u00a7f" + held.getItem().getRegistryName()
+                                + "\u00a78 meta " + held.getMetadata());
+                        if (held.hasTagCompound()) {
+                            String text = String.valueOf(held.getTagCompound());
+                            say(mc, "\u00a77  NBT: \u00a7f"
+                                    + (text.length() > 260 ? text.substring(0, 260) + "..." : text));
+                        }
+                        found = true;
+                    }
+                    if (!found) {
+                        say(mc, "\u00a77Look at a block or entity, or hold an item, then run this.");
+                    } else {
+                        say(mc, "\u00a78Add it to an ESP list with the picker in the Tools tab.");
                     }
                 });
                 return;

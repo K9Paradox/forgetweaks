@@ -126,7 +126,10 @@ public final class FeatureConfig {
      * 4 = outline (wireframe trace of the real model, living entities only).
      * Stored as a comma separated string so the reflective config writer can persist it.
      */
-    public static String espStyles = "0,0,0,0,1,2,1,0,3,1,1";
+    // CHEST,SPAWNER,WAYSTONE,CONTAINER,CUSTOM_BLOCK,BOSS,HOSTILE,PLAYER,ITEM,MODDED,CUSTOM_ENTITY
+    // Living kinds default to Outline(4); blocks and items to Box(0). ITEM was Footprint,
+    // which is a 0.02-block-tall sliver and looked exactly like the feature being broken.
+    public static String espStyles = "0,0,0,0,0,4,4,4,0,4,4";
 
     /** Parsed view of {@link #espStyles}, rebuilt only when the string changes. */
     private static String cachedStyleRaw = null;
@@ -208,6 +211,30 @@ public final class FeatureConfig {
     public static boolean hudStats = true;
     public static boolean hudTargetInfo = true;
 
+    /** Bumped when new default list entries are added; see migrate(). */
+    public static int configVersion = 0;
+    private static final int CURRENT_CONFIG_VERSION = 2;
+
+    /**
+     * Appends newly shipped default patterns to existing configs.
+     *
+     * <p>Defaults only apply to a config file that does not exist yet, so anyone who had already
+     * saved kept the old ESP lists and never received later additions - which is why the dragon
+     * skull patterns did not appear for existing users.</p>
+     */
+    private static void migrate() {
+        if (configVersion >= CURRENT_CONFIG_VERSION) return;
+        if (configVersion < 2) {
+            for (String entry : new String[]{"*dragon_skull*", "*dragonskull*", "*dragon_head*",
+                    "*dragon_skeleton*", "*dragonegg*", "*dragon_egg*"}) {
+                espCustomBlocks = TargetList.add(espCustomBlocks, entry);
+                espCustomEntities = TargetList.add(espCustomEntities, entry);
+            }
+        }
+        configVersion = CURRENT_CONFIG_VERSION;
+        saveConfig();
+    }
+
     // ------------------------------------------------------------ Persistence
     private static File configFile;
 
@@ -215,6 +242,7 @@ public final class FeatureConfig {
     public static void init(File configDir) {
         configFile = new File(configDir, "rlutility_features.cfg");
         loadConfig();
+        migrate();
     }
 
     private static File getConfigFile() {

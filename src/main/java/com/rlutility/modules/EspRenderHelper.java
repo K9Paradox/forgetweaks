@@ -142,7 +142,7 @@ public class EspRenderHelper {
                 double y = pos.getY() - viewerY;
                 double z = pos.getZ() - viewerZ;
                 AxisAlignedBB bb = new AxisAlignedBB(x, y, z, x + 1.0D, y + 1.0D, z + 1.0D);
-                drawStyled(bb, kind, 0.75F);
+                drawStyled(bb, kind, 0.75F, false);
 
                 if (FeatureConfig.espTracers) {
                     tracerTargets.add(new double[]{x + 0.5D, y + 0.5D, z + 0.5D,
@@ -168,7 +168,7 @@ public class EspRenderHelper {
                         raw.minX + ix - viewerX, raw.minY + iy - viewerY, raw.minZ + iz - viewerZ,
                         raw.maxX + ix - viewerX, raw.maxY + iy - viewerY, raw.maxZ + iz - viewerZ);
 
-                drawStyled(bb, kind, 0.85F);
+                drawStyled(bb, kind, 0.85F, entity instanceof EntityLivingBase);
 
                 if (FeatureConfig.espTracers) {
                     tracerTargets.add(new double[]{
@@ -286,14 +286,18 @@ public class EspRenderHelper {
 
     // -------------------------------------------------------------- drawing
 
-    private static void drawStyled(AxisAlignedBB bb, Kind kind, float alpha) {
+    /**
+     * @param modelOutlined true when ModelOutlineHandler will trace this target's model itself.
+     *                      Only living entities have a model renderer to re-run, so everything else
+     *                      must fall back to geometry - deciding that by Kind ordinal was wrong and
+     *                      made dropped items set to Outline render nothing at all.
+     */
+    private static void drawStyled(AxisAlignedBB bb, Kind kind, float alpha, boolean modelOutlined) {
         float[] color = kind.color;
         GlStateManager.glLineWidth((float) Math.max(0.5D, Math.min(6.0D, FeatureConfig.espLineWidth)));
 
-        // Style 4 ("Outline") is drawn by ModelOutlineHandler as a wireframe pass over the real
-        // model. Blocks have no model renderer to trace, so they fall back to a box.
         if (kind.style() == 4) {
-            if (kind.ordinal() >= Kind.BOSS.ordinal()) return;
+            if (modelOutlined) return;              // the wireframe pass handles it
             RenderGlobal.drawSelectionBoundingBox(bb, color[0], color[1], color[2], alpha);
             return;
         }
