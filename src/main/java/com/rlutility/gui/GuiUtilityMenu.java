@@ -349,10 +349,16 @@ public class GuiUtilityMenu extends GuiScreen {
     }
 
     private void buildSkillActionRows() {
-            rows.add(new ActionRow("Unlock Held Item",
-                    "Buys exactly the Reskillable levels the item in your hand is missing. This spends "
-                            + "real XP because the server validates every level-up - there is no free path.",
-                    "buy", () -> announceResult(ReskillableHelper.unlockHeldItem())));
+        // Restored: this row calls into Reskillable and must not exist without it.
+        if (ReskillableHelper.isModLoaded()) {
+                rows.add(new ActionRow("Unlock Held Item",
+                        "Buys exactly the Reskillable levels the item in your hand is missing. This spends "
+                                + "real XP because the server validates every level-up - there is no free path.",
+                        "buy", () -> announceResult(ReskillableHelper.unlockHeldItem())));
+        }
+
+        // Restored: the row below reads this, and it was left behind in buildToolsRows.
+        byte spec = LevelUpExploitHandler.currentSpecialization();
         rows.add(new ActionRow("Skill Tree Editor",
                 "Per-skill Level Up! 2 editor.",
                 "open", () -> this.mc.displayGuiScreen(new GuiLevelUpConfig(this))));
@@ -391,11 +397,13 @@ public class GuiUtilityMenu extends GuiScreen {
     }
 
     private void buildExploitActionRows() {
+        if (QuestExploitHandler.isModLoaded()) {
             rows.add(new ActionRow("Quest Sweep",
                     "BetterQuesting's quest_action channel has no permission check, and its id array is "
                             + "client supplied. Runs a detection pass over every quest, then claims what "
                             + "became claimable. Rewards you already qualify for only - claim is validated.",
                     "run", QuestExploitHandler::sweepAll));
+        if (com.rlutility.modules.TrinketRaceHandler.isAvailable()) {
             rows.add(new ActionRow("Trinkets: Set Race",
                     "SelectRacePacket only checks null/none/blacklist. If the server enables the race "
                             + "selection menu the authorization check is short-circuited entirely; even "
@@ -408,12 +416,16 @@ public class GuiUtilityMenu extends GuiScreen {
                         announceResult("\u00a77Apply with /rlu race <race> [element]");
                         mc.displayGuiScreen(null);
                     }));
+        if (DupeExploitHandler.isModLoaded()) {
             rows.add(new ActionRow("Desync Dupe",
                     "Guided save-abort dupe. Relog for a clean rollback point, arm, bank your items, relog.",
                     DupeExploitHandler.isArmed() ? "ARMED" : "start", () -> {
                         DupeExploitHandler.begin();
                         mc.displayGuiScreen(null);
                     }));
+        }
+        }
+        }
         rows.add(new ActionRow("Reforge Target", "Quality that Auto Reforge stops rolling at.",
                 FeatureConfig.targetQuality, () -> {
             String[] presets = AutoReforgerHandler.QUALITY_PRESETS;
