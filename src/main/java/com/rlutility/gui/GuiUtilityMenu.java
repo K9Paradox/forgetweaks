@@ -431,6 +431,20 @@ public class GuiUtilityMenu extends GuiScreen {
     }
 
     private void buildToolsRows() {
+        // Placed first so it can never become the clipped last row again.
+        rows.add(new ActionRow("Save Configuration",
+                "Writes the config file immediately and reports the path it wrote to.",
+                saveFlash > 0 ? "\u00a7a\u2714 SAVED" : "save", () -> {
+                    boolean ok = FeatureConfig.saveConfig();
+                    toast = (ok ? "\u00a7a\u2714 Saved: " : "\u00a7c\u2718 Save failed: ")
+                            + FeatureConfig.lastSaveResult;
+                    toastTicks = 140;
+                    saveFlash = 140;
+                    announceResult((ok ? "\u00a7aSaved \u00a77" : "\u00a7cSave FAILED \u00a77")
+                            + FeatureConfig.lastSaveResult);
+                    rebuildRows();
+                }));
+
         addGrouped(FeatureRegistry.byCategory(Feature.Category.TOOLS));
 
         rows.add(new ActionRow("Magnet Whitelist",
@@ -447,19 +461,6 @@ public class GuiUtilityMenu extends GuiScreen {
                         () -> FeatureConfig.magnetBlacklist,
                         v -> FeatureConfig.magnetBlacklist = v,
                         GuiUtilityMenu::allItemIds, () -> null))));
-        rows.add(new ActionRow("Save Configuration",
-                "Writes config/rlutility_features.cfg immediately.",
-                saveFlash > 0 ? "\u2714 saved" : "save", () -> {
-                    boolean ok = FeatureConfig.saveConfig();
-                    // Report the real outcome and path; a silent catch used to hide write failures.
-                    toast = (ok ? "\u00a7a\u2714 Saved: " : "\u00a7c\u2718 Save failed: ")
-                            + FeatureConfig.lastSaveResult;
-                    toastTicks = 120;
-                    saveFlash = 120;
-                    announceResult((ok ? "\u00a7aSaved \u00a77" : "\u00a7cSave FAILED \u00a77")
-                            + FeatureConfig.lastSaveResult);
-                    rebuildRows();
-                }));
     }
 
     /** Setting currently being typed into, or null. */
