@@ -120,8 +120,49 @@ public final class FeatureConfig {
     public static boolean clickAuraHitTamed = false;
 
     // ------------------------------------------------------------- ESP style
-    /** 0 = box, 1 = corner brackets, 2 = filled + outline, 3 = ground footprint. */
-    public static int espStyle = 1;
+    /**
+     * Per-category render style, one entry per EspRenderHelper.Kind in ordinal order.
+     * 0 = box, 1 = corner brackets, 2 = filled + outline, 3 = ground footprint.
+     * Stored as a comma separated string so the reflective config writer can persist it.
+     */
+    public static String espStyles = "0,0,0,0,1,2,1,0,3,1,1";
+
+    /** Parsed view of {@link #espStyles}, rebuilt only when the string changes. */
+    private static String cachedStyleRaw = null;
+    private static int[] cachedStyles = new int[0];
+
+    public static int[] espStyleArray() {
+        String raw = espStyles == null ? "" : espStyles;
+        if (!raw.equals(cachedStyleRaw)) {
+            String[] parts = raw.split(",");
+            int[] out = new int[parts.length];
+            for (int i = 0; i < parts.length; i++) {
+                try {
+                    out[i] = Integer.parseInt(parts[i].trim());
+                } catch (NumberFormatException e) {
+                    out[i] = 0;
+                }
+            }
+            cachedStyles = out;
+            cachedStyleRaw = raw;
+        }
+        return cachedStyles;
+    }
+
+    /** Cycle one category's style, growing the list if a new Kind was added. */
+    public static void cycleEspStyle(int index, int delta) {
+        int[] cur = espStyleArray();
+        int len = Math.max(cur.length, index + 1);
+        int[] next = new int[len];
+        System.arraycopy(cur, 0, next, 0, cur.length);
+        next[index] = ((next[index] + delta) % 4 + 4) % 4;
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < len; i++) {
+            if (i > 0) sb.append(',');
+            sb.append(next[i]);
+        }
+        espStyles = sb.toString();
+    }
     public static double espLineWidth = 1.5D;
 
     /** Show the exact enchantments each table slot will give, derived from the synced xpSeed. */

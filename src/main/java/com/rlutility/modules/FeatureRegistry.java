@@ -253,10 +253,16 @@ public final class FeatureRegistry {
                 Category.VISUALS, Compat.LOCAL,
                 () -> FeatureConfig.espAllContainers, v -> FeatureConfig.espAllContainers = v);
 
-        s("ESP Style", "Box, corner brackets, filled, or a ground footprint.", Category.VISUALS,
-                () -> new String[]{"Box", "Corners", "Filled", "Footprint"}[
-                        Math.max(0, Math.min(3, FeatureConfig.espStyle))],
-                d -> FeatureConfig.espStyle = (int) clamp(FeatureConfig.espStyle + d, 0, 3));
+        // One style row per category, so chests and mobs can look different.
+        for (final com.rlutility.modules.EspRenderHelper.Kind kind
+                : com.rlutility.modules.EspRenderHelper.Kind.values()) {
+            final int index = kind.ordinal();
+            s("Style: " + kind.title, "Highlight shape used for " + kind.title.toLowerCase()
+                    + " targets only.", Category.VISUALS,
+                    () -> new String[]{"Box", "Corners", "Filled", "Footprint"}[kind.style()],
+                    d -> FeatureConfig.cycleEspStyle(index, d));
+        }
+
         s("ESP Line Width", "Outline thickness.", Category.VISUALS,
                 () -> String.format("%.1f", FeatureConfig.espLineWidth),
                 d -> FeatureConfig.espLineWidth = clamp(FeatureConfig.espLineWidth + 0.5 * d, 0.5, 6.0));
