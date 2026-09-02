@@ -33,29 +33,46 @@ import java.util.List;
 public class GuiUtilityMenu extends GuiScreen {
 
     // ---------------------------------------------------------------- palette
-    private static final int COL_SHADOW    = 0x66000000;
-    private static final int COL_PANEL     = 0xF00C1017;
-    private static final int COL_HEADER    = 0xFF131A24;
-    private static final int COL_RAIL      = 0xFF0F141C;
-    private static final int COL_ROW       = 0x14FFFFFF;
-    private static final int COL_ROW_HOVER = 0x2AFFFFFF;
-    private static final int COL_SEL       = 0x33FFC24B;
+    // Flat dark palette with a single accent. Rows are near-transparent so the surface reads as
+    // one panel instead of a stack of boxes, which is what made the old list look busy.
+    private static final int COL_SHADOW    = 0x99000000;
+    private static final int COL_PANEL     = 0xF20B0E14;
+    private static final int COL_HEADER    = 0xFF11161F;
+    private static final int COL_RAIL      = 0xFF0D1118;
+    private static final int COL_ROW       = 0x00000000;
+    private static final int COL_ROW_HOVER = 0x1AFFFFFF;
+    private static final int COL_SEL       = 0x26FFC24B;
     private static final int COL_ACCENT    = 0xFFFFC24B;
-    private static final int COL_TEXT      = 0xFFE6EDF3;
-    private static final int COL_DIM       = 0xFF7D8894;
+    private static final int COL_TEXT      = 0xFFE8EEF5;
+    private static final int COL_DIM       = 0xFF6B7684;
     private static final int COL_ON        = 0xFF4ADE80;
-    private static final int COL_OFF       = 0xFF3A424C;
-    private static final int COL_LINE      = 0xFF1E2733;
+    private static final int COL_OFF       = 0xFF2A313B;
+    private static final int COL_LINE      = 0xFF1A2130;
+    private static final int COL_SECTION   = 0xFF8B97A6;
+
+    /** Rail accent per category, so tabs are distinguishable at a glance. */
+    private static int categoryColor(Feature.Category c) {
+        switch (c) {
+            case COMBAT:   return 0xFFF87171;
+            case MOVEMENT: return 0xFF60A5FA;
+            case SURVIVAL: return 0xFF4ADE80;
+            case SKILLS:   return 0xFFC084FC;
+            case EXPLOITS: return 0xFFFBBF24;
+            case VISUALS:  return 0xFF22D3EE;
+            case HUD:      return 0xFFF472B6;
+            default:       return 0xFF94A3B8;
+        }
+    }
 
     // ----------------------------------------------------------------- layout
     private static final int PANEL_W = 480;
-    private static final int PANEL_H = 286;
-    private static final int HEADER_H = 30;
+    private static final int PANEL_H = 300;
+    private static final int HEADER_H = 34;
     private static final int FOOTER_H = 38;
-    private static final int RAIL_W = 110;
+    private static final int RAIL_W = 116;
     private static final int SCROLLBAR_W = 4;
-    private static final int ROW_H = 22;
-    private static final int ROW_GAP = 3;
+    private static final int ROW_H = 20;
+    private static final int ROW_GAP = 1;
     private static final int FOOTER_LINES = 3;
 
     // ------------------------------------------------------------------ state
@@ -100,6 +117,29 @@ public class GuiUtilityMenu extends GuiScreen {
         return fontRenderer.trimStringToWidth(text, Math.max(0, maxWidth - 6)) + "\u2026";
     }
 
+    /**
+     * Non-interactive divider naming a group of rows. Groups are derived automatically from the
+     * "Prefix: Name" convention already used across the registry, so no feature needs annotating.
+     */
+    private static class SectionRow extends Row {
+        SectionRow(String label) {
+            super(label, null);
+        }
+
+        @Override boolean selectable() {
+            return false;
+        }
+
+        @Override void render(GuiUtilityMenu gui, int x, int y, int width) {
+            String text = label.toUpperCase();
+            gui.drawText(text, x + 8, y + ROW_H - 11, COL_SECTION);
+            int tx = x + 12 + gui.fontRenderer.getStringWidth(text);
+            if (tx < x + width - 8) {
+                rect(tx, y + ROW_H - 7, x + width - 8, y + ROW_H - 6, COL_LINE);
+            }
+        }
+    }
+
     private abstract static class Row {
         String label;
         String desc;
@@ -109,6 +149,11 @@ public class GuiUtilityMenu extends GuiScreen {
         }
         abstract void click(int button);
         void render(GuiUtilityMenu gui, int x, int y, int width) {}
+
+        /** Section headers are skipped by hover and click handling. */
+        boolean selectable() {
+            return true;
+        }
     }
 
     private static class ToggleRow extends Row {
@@ -126,10 +171,12 @@ public class GuiUtilityMenu extends GuiScreen {
             int px = x + width - pillW - 10;
             gui.drawText(gui.fit(feature.name, px - (x + 10) - 6), x + 10, y + 7, on ? COL_TEXT : COL_DIM);
 
-            int py = y + 6;
-            rect(px, py, px + pillW, py + 10, on ? COL_ON : COL_OFF);
-            int knobX = on ? px + pillW - 10 : px + 1;
-            rect(knobX, py + 1, knobX + 9, py + 9, 0xFF0C1017);
+            int py = y + 5;
+            // Inset corners fake a rounded pill without a texture.
+            rect(px + 1, py, px + pillW - 1, py + 10, on ? COL_ON : COL_OFF);
+            rect(px, py + 1, px + pillW, py + 9, on ? COL_ON : COL_OFF);
+            int knobX = on ? px + pillW - 9 : px + 1;
+            rect(knobX, py + 1, knobX + 8, py + 9, 0xFF0B0E14);
         }
     }
 
@@ -212,13 +259,34 @@ public class GuiUtilityMenu extends GuiScreen {
             return;
         }
 
-        for (Feature f : FeatureRegistry.byCategory(selectedCategory)) rows.add(new ToggleRow(f));
+        addGrouped(FeatureRegistry.byCategory(selectedCategory));
         for (FeatureRegistry.Setting s : FeatureRegistry.settingsFor(selectedCategory)) rows.add(new SettingRow(s));
         clampScroll();
     }
 
+    /**
+     * Splits "Prefix: Name" rows into groups, emitting a section header when the prefix changes.
+     * Long tabs stop reading as one undifferentiated wall of toggles.
+     */
+    private void addGrouped(List<Feature> features) {
+        String lastGroup = null;
+        for (Feature f : features) {
+            int colon = f.name.indexOf(':');
+            String group = colon > 0 ? f.name.substring(0, colon).trim() : null;
+            if (group != null && !group.equals(lastGroup)) {
+                rows.add(new SectionRow(group));
+            }
+            if (group == null && lastGroup != null) {
+                lastGroup = null;
+            } else {
+                lastGroup = group;
+            }
+            rows.add(new ToggleRow(f));
+        }
+    }
+
     private void buildToolsRows() {
-        for (Feature f : FeatureRegistry.byCategory(Feature.Category.TOOLS)) rows.add(new ToggleRow(f));
+        addGrouped(FeatureRegistry.byCategory(Feature.Category.TOOLS));
 
         rows.add(new ActionRow("Edit XRay Blocks",
                 "Pick which blocks XRay highlights. Add the block you are looking at, browse the full "
@@ -405,10 +473,12 @@ public class GuiUtilityMenu extends GuiScreen {
         int x = panelX, y = panelY;
 
         // drop shadow + body
-        drawRect(x - 2, y - 2, x + PANEL_W + 2, y + PANEL_H + 2, COL_SHADOW);
+        drawRect(x - 3, y - 3, x + PANEL_W + 3, y + PANEL_H + 3, COL_SHADOW);
+        drawRect(x - 1, y - 1, x + PANEL_W + 1, y + PANEL_H + 1, COL_LINE);
         drawRect(x, y, x + PANEL_W, y + PANEL_H, COL_PANEL);
         drawRect(x, y, x + PANEL_W, y + HEADER_H, COL_HEADER);
-        drawRect(x, y + HEADER_H - 1, x + PANEL_W, y + HEADER_H, COL_ACCENT);
+        // Thin accent under the header, tinted to the active category.
+        drawRect(x, y + HEADER_H - 1, x + PANEL_W, y + HEADER_H, categoryColor(selectedCategory));
         drawRect(x, y + HEADER_H, x + RAIL_W, y + PANEL_H - FOOTER_H, COL_RAIL);
         drawRect(x + RAIL_W, y + HEADER_H, x + RAIL_W + 1, y + PANEL_H - FOOTER_H, COL_LINE);
         drawRect(x, y + PANEL_H - FOOTER_H, x + PANEL_W, y + PANEL_H - FOOTER_H + 1, COL_LINE);
@@ -422,28 +492,32 @@ public class GuiUtilityMenu extends GuiScreen {
     }
 
     private void drawHeader(int x, int y, int mouseX, int mouseY) {
-        drawText("\u00a7lRLUtility", x + 12, y + 7, COL_ACCENT);
-        int versionX = x + 12 + fontRenderer.getStringWidth("RLUtility") + 8;
+        // Accent block + wordmark reads cleaner than a bold string alone.
+        drawRect(x + 12, y + 11, x + 15, y + 23, COL_ACCENT);
+        drawText("\u00a7lRLUtility", x + 21, y + 13, COL_TEXT);
+        int versionX = x + 21 + fontRenderer.getStringWidth("RLUtility") + 10;
         String version = fit("v" + RLUtilityMod.VERSION + "  \u00b7  RLCraft 2.9.3", (x + PANEL_W - 178) - versionX - 8);
-        drawText(version, versionX, y + 7, COL_DIM);
+        drawText(version, versionX, y + 13, COL_DIM);
 
         // search field
         int sx = x + PANEL_W - 178;
-        int sy = y + 6;
+        int sy = y + 9;
         boolean hover = inside(mouseX, mouseY, sx, sy, 148, 18);
-        drawRect(sx, sy, sx + 148, sy + 18, hover ? 0x33FFFFFF : 0x22FFFFFF);
-        String shown = searchQuery.isEmpty() ? "\u00a78Search modules..." : fit(searchQuery, 136);
-        drawText(shown, sx + 6, sy + 5, searchQuery.isEmpty() ? COL_DIM : COL_TEXT);
+        drawRect(sx, sy, sx + 148, sy + 17, hover ? 0x22FFFFFF : 0x14FFFFFF);
+        drawRect(sx, sy + 16, sx + 148, sy + 17, hover ? COL_ACCENT : COL_LINE);
+        drawText("\u00a78\u26B2", sx + 5, sy + 5, COL_DIM);
+        String shown = searchQuery.isEmpty() ? "\u00a78Search modules..." : fit(searchQuery, 122);
+        drawText(shown, sx + 16, sy + 5, searchQuery.isEmpty() ? COL_DIM : COL_TEXT);
         if (!searchQuery.isEmpty() && (caretTimer / 6) % 2 == 0) {
-            int caretX = Math.min(sx + 6 + fontRenderer.getStringWidth(fit(searchQuery, 136)), sx + 142);
+            int caretX = Math.min(sx + 16 + fontRenderer.getStringWidth(fit(searchQuery, 122)), sx + 142);
             drawRect(caretX + 1, sy + 4, caretX + 2, sy + 14, COL_ACCENT);
         }
 
         // close button
-        int cxb = x + PANEL_W - 22;
-        boolean hoverClose = inside(mouseX, mouseY, cxb, y + 6, 16, 18);
-        drawRect(cxb, y + 6, cxb + 16, y + 24, hoverClose ? 0x44F87171 : 0x00000000);
-        drawText("\u2715", cxb + 5, y + 11, hoverClose ? 0xFFF87171 : COL_DIM);
+        int cxb = x + PANEL_W - 24;
+        boolean hoverClose = inside(mouseX, mouseY, cxb, y + 9, 17, 17);
+        drawRect(cxb, y + 9, cxb + 17, y + 26, hoverClose ? 0x33F87171 : 0x00000000);
+        drawText("\u2715", cxb + 5, y + 13, hoverClose ? 0xFFF87171 : COL_DIM);
     }
 
     private void drawRail(int x, int y, int mouseX, int mouseY) {
@@ -455,23 +529,34 @@ public class GuiUtilityMenu extends GuiScreen {
             boolean selected = (c == selectedCategory) && searchQuery.isEmpty();
             boolean hover = inside(mouseX, mouseY, x + 4, ry, RAIL_W - 8, 22);
 
+            int accent = categoryColor(c);
+
             if (selected) {
-                drawRect(x + 4, ry, x + RAIL_W - 4, ry + 22, COL_SEL);
-                drawRect(x + 4, ry, x + 6, ry + 22, COL_ACCENT);
+                drawRect(x + 4, ry, x + RAIL_W - 5, ry + 22, COL_SEL);
+                // Full-height accent bar in the category's own colour.
+                drawRect(x + 4, ry, x + 7, ry + 22, accent);
             } else if (hover) {
-                drawRect(x + 4, ry, x + RAIL_W - 4, ry + 22, COL_ROW_HOVER);
+                drawRect(x + 4, ry, x + RAIL_W - 5, ry + 22, COL_ROW_HOVER);
+                drawRect(x + 4, ry + 6, x + 6, ry + 16, accent);
+            } else {
+                // Dim dot keeps the colour association even when inactive.
+                drawRect(x + 5, ry + 9, x + 8, ry + 12, (accent & 0x00FFFFFF) | 0x77000000);
             }
 
             int enabled = 0;
             List<Feature> inCat = FeatureRegistry.byCategory(c);
             for (Feature f : inCat) if (f.isEnabled()) enabled++;
 
-            String count = inCat.isEmpty() ? null : enabled + "/" + inCat.size();
-            int countW = count == null ? 0 : fontRenderer.getStringWidth(count) + 6;
-            drawText(fit(c.title, RAIL_W - 24 - countW), x + 13, ry + 7, selected ? COL_ACCENT : COL_TEXT);
+            // Only show the count when something is on; "0/9" everywhere was pure noise.
+            String count = enabled > 0 ? String.valueOf(enabled) : null;
+            int countW = count == null ? 0 : fontRenderer.getStringWidth(count) + 12;
+            drawText(fit(c.title, RAIL_W - 30 - countW), x + 15, ry + 7,
+                    selected ? COL_TEXT : (hover ? COL_TEXT : COL_DIM));
             if (count != null) {
-                drawText("\u00a78" + count, x + RAIL_W - 10 - fontRenderer.getStringWidth(count), ry + 7,
-                        selected ? COL_ACCENT : COL_DIM);
+                int bx = x + RAIL_W - 11 - fontRenderer.getStringWidth(count);
+                drawRect(bx - 4, ry + 5, bx + fontRenderer.getStringWidth(count) + 4, ry + 17,
+                        (accent & 0x00FFFFFF) | 0x33000000);
+                drawText(count, bx, ry + 8, accent);
             }
             ry += 24;
         }
@@ -503,13 +588,15 @@ public class GuiUtilityMenu extends GuiScreen {
                 if (ry + ROW_H < top || ry > bottom) continue;
 
                 Row row = rows.get(i);
-                boolean hover = inside(mouseX, mouseY, cx, ry, cw, ROW_H)
+                boolean hover = row.selectable() && inside(mouseX, mouseY, cx, ry, cw, ROW_H)
                         && mouseY >= top && mouseY <= bottom;
 
-                drawRect(cx, ry, cx + cw, ry + ROW_H, hover ? COL_ROW_HOVER : COL_ROW);
                 if (hover) {
+                    drawRect(cx, ry, cx + cw, ry + ROW_H, COL_ROW_HOVER);
                     drawRect(cx, ry, cx + 2, ry + ROW_H, COL_ACCENT);
                     hoveredDesc = row.desc;
+                } else if (row.selectable() && COL_ROW != 0) {
+                    drawRect(cx, ry, cx + cw, ry + ROW_H, COL_ROW);
                 }
                 row.render(this, cx, ry, cw);
             }
@@ -601,7 +688,7 @@ public class GuiUtilityMenu extends GuiScreen {
         int x = panelX, y = panelY;
 
         // close
-        if (inside(mouseX, mouseY, x + PANEL_W - 22, y + 6, 16, 18)) {
+        if (inside(mouseX, mouseY, x + PANEL_W - 24, y + 9, 17, 17)) {
             closeMenu();
             return;
         }
@@ -639,6 +726,7 @@ public class GuiUtilityMenu extends GuiScreen {
         for (int i = 0; i < rows.size(); i++) {
             int rowY = top + i * (ROW_H + ROW_GAP) - scroll;
             if (rowY < top || rowY + ROW_H > bottom) continue;
+            if (!rows.get(i).selectable()) continue;
             if (inside(mouseX, mouseY, cx, rowY, cw, ROW_H)) {
                 rows.get(i).click(mouseButton);
                 return;
