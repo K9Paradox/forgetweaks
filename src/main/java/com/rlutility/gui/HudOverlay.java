@@ -40,15 +40,16 @@ public class HudOverlay extends Gui {
         FontRenderer fr = mc.fontRenderer;
         int screenWidth = res.getScaledWidth();
 
-        int y = 4;
+        int hudX = Math.max(0, Math.min(screenWidth - 20, FeatureConfig.hudX));
+        int y = Math.max(0, FeatureConfig.hudY);
         if (FeatureConfig.hudWatermark) {
             String tag = "RLUtility";
             String ver = " v" + RLUtilityMod.VERSION + " \u00b7 RLCraft 2.9.3";
             int w = fr.getStringWidth(tag + ver);
-            drawRect(3, 3, 7 + w, 14, PANEL_BG);
-            fr.drawStringWithShadow(tag, 5, 5, ACCENT);
-            fr.drawStringWithShadow(ver, 5 + fr.getStringWidth(tag), 5, SUBTLE);
-            y = 17;
+            drawRect(hudX, y - 1, hudX + 4 + w, y + 10, PANEL_BG);
+            fr.drawStringWithShadow(tag, hudX + 2, y + 1, ACCENT);
+            fr.drawStringWithShadow(ver, hudX + 2 + fr.getStringWidth(tag), y + 1, SUBTLE);
+            y += 13;
         }
 
         if (FeatureConfig.hudStats) {
@@ -57,22 +58,22 @@ public class HudOverlay extends Gui {
                     pingOf(mc),
                     mc.player.posX, mc.player.posY, mc.player.posZ);
             int w = fr.getStringWidth(stats);
-            drawRect(3, y - 1, 7 + w, y + 10, PANEL_BG);
-            fr.drawStringWithShadow(stats, 5, y + 1, TEXT);
+            drawRect(hudX, y - 1, hudX + 4 + w, y + 10, PANEL_BG);
+            fr.drawStringWithShadow(stats, hudX + 2, y + 1, TEXT);
             y += 13;
 
             // SimpleDifficulty survival readout (server-synced thirst + temperature).
             String env = com.rlutility.modules.SimpleDifficultyHelper.hudReadout();
             if (!env.isEmpty()) {
                 int ew = fr.getStringWidth(env);
-                drawRect(3, y - 1, 7 + ew, y + 10, PANEL_BG);
-                fr.drawStringWithShadow(env, 5, y + 1, TEXT);
+                drawRect(hudX, y - 1, hudX + 4 + ew, y + 10, PANEL_BG);
+                fr.drawStringWithShadow(env, hudX + 2, y + 1, TEXT);
                 y += 13;
             }
         }
 
         if (FeatureConfig.hudTargetInfo) {
-            drawTargetInfo(mc, fr, y);
+            drawTargetInfo(mc, fr, y, hudX);
         }
 
         if (FeatureConfig.hudModuleList) {
@@ -87,20 +88,21 @@ public class HudOverlay extends Gui {
         // Sorted longest-first, the classic clean array-list look.
         active.sort(Comparator.comparingInt((Feature f) -> fr.getStringWidth(f.name)).reversed());
 
-        int y = 4;
+        int y = Math.max(0, FeatureConfig.hudModuleY);
+        int rightMargin = Math.max(0, FeatureConfig.hudModuleX);
         for (Feature f : active) {
             String label = f.name;
             int w = fr.getStringWidth(label);
-            int x = screenWidth - w - 5;
+            int x = screenWidth - w - rightMargin;
 
-            drawRect(x - 2, y - 1, screenWidth - 2, y + 9, PANEL_BG);
-            drawRect(screenWidth - 2, y - 1, screenWidth - 1, y + 9, ACCENT);
+            drawRect(x - 2, y - 1, screenWidth - rightMargin + 2, y + 9, PANEL_BG);
+            drawRect(screenWidth - rightMargin, y - 1, screenWidth - rightMargin + 1, y + 9, ACCENT);
             fr.drawStringWithShadow(label, x, y, TEXT);
             y += 11;
         }
     }
 
-    private void drawTargetInfo(Minecraft mc, FontRenderer fr, int y) {
+    private void drawTargetInfo(Minecraft mc, FontRenderer fr, int y, int hudX) {
         // Kill aura is gone; the HUD now reports whatever the crosshair is on.
         Entity target = null;
         net.minecraft.util.math.RayTraceResult hit = mc.objectMouseOver;
@@ -117,8 +119,8 @@ public class HudOverlay extends Gui {
                 living.getName(), living.getHealth(), living.getMaxHealth(), dist);
         int w = Math.max(fr.getStringWidth(line), 90);
 
-        drawRect(3, y - 1, 7 + w, y + 16, PANEL_BG);
-        fr.drawStringWithShadow(line, 5, y + 1, TEXT);
+        drawRect(hudX, y - 1, hudX + 4 + w, y + 16, PANEL_BG);
+        fr.drawStringWithShadow(line, hudX + 2, y + 1, TEXT);
 
         int barX = 5;
         int barY = y + 11;

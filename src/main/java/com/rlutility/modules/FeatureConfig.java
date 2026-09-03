@@ -239,6 +239,14 @@ public final class FeatureConfig {
     public static boolean hudModuleList = true;
     public static boolean hudStats = true;
     public static boolean hudTargetInfo = true;
+    /** Main HUD left offset in scaled pixels. */
+    public static int hudX = 3;
+    /** Main HUD top offset in scaled pixels. */
+    public static int hudY = 4;
+    /** Module-list right margin in scaled pixels. */
+    public static int hudModuleX = 5;
+    /** Module-list top offset in scaled pixels. */
+    public static int hudModuleY = 90;
 
     /** Bumped when new default list entries are added; see migrate(). */
     public static int configVersion = 0;

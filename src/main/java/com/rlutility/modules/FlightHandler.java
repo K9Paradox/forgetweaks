@@ -102,6 +102,10 @@ public class FlightHandler {
         if (player == null || event.player != player) return;
 
         if (FeatureConfig.creativeFly) {
+            if (player.onGround) {
+                // Clear stale client fall distance before the server processes a landing packet.
+                player.fallDistance = 0.0F;
+            }
             // The permission is ours; re-assert it every tick in case a resync stripped it.
             player.capabilities.allowFlying = true;
             forced = true;

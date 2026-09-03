@@ -59,9 +59,13 @@ public class NoFallHandler {
             brakeBeforeImpact(player);
         }
 
-        if (!FeatureConfig.noFall) return;
+        // Creative-style flight can briefly report isFlying=false while the server resyncs
+        // abilities after damage. Keep the fall guard active during that transition too; otherwise
+        // touching down in the same tick can turn a harmless flight correction into lethal damage.
+        boolean flightSafety = FeatureConfig.creativeFly && player.capabilities.allowFlying;
+        if (!FeatureConfig.noFall && !flightSafety) return;
         if (player.capabilities.isCreativeMode || player.isSpectator()) return;
-        if (AutoCritHandler.critWindow > 0) return; // let the crit hop keep its fall distance
+        if (AutoCritHandler.critWindow > 0 && !flightSafety) return; // let the crit hop keep its fall distance
         if (player.isElytraFlying()) return;
 
         // Only lie about being grounded once the drop would actually hurt. No motionY gate: when

@@ -519,6 +519,18 @@ public final class FeatureRegistry {
         sub("Target Info", "Health bar and distance readout for whatever you are looking at.",
                 Category.HUD, Compat.LOCAL, "HUD",
                 () -> FeatureConfig.hudTargetInfo, v -> FeatureConfig.hudTargetInfo = v);
+        num("HUD X", "Left offset of the main HUD block.", Category.HUD, "HUD", "px",
+                () -> FeatureConfig.hudX, v -> FeatureConfig.hudX = (int) v,
+                2, 0, 400, 0, 4096, true);
+        num("HUD Y", "Top offset of the main HUD block.", Category.HUD, "HUD", "px",
+                () -> FeatureConfig.hudY, v -> FeatureConfig.hudY = (int) v,
+                2, 0, 400, 0, 4096, true);
+        num("Module X", "Right margin of the active-module list.", Category.HUD, "HUD", "px",
+                () -> FeatureConfig.hudModuleX, v -> FeatureConfig.hudModuleX = (int) v,
+                2, 0, 400, 0, 4096, true);
+        num("Module Y", "Top offset of the active-module list.", Category.HUD, "HUD", "px",
+                () -> FeatureConfig.hudModuleY, v -> FeatureConfig.hudModuleY = (int) v,
+                2, 0, 400, 0, 4096, true);
     }
 
     private static double clamp(double v, double min, double max) {
