@@ -295,11 +295,17 @@ public final class FeatureRegistry {
                 0.05, 0.05, 2, 0.01, 20, false);
         sub("Only My Drops", "Ignore items that another player dropped.",
                 Category.SURVIVAL, Compat.LOCAL, "Item Magnet",
-                () -> FeatureConfig.magnetOnlyMine, v -> FeatureConfig.magnetOnlyMine = v);
+                () -> FeatureConfig.magnetOnlyMine, v -> {
+                    FeatureConfig.magnetOnlyMine = v;
+                    if (v) FeatureConfig.magnetIgnoreMine = false;
+                });
         sub("Ignore My Drops", "The reverse: leave items you dropped or threw yourself where they "
                 + "are, so the magnet only collects loot from kills and chests.",
                 Category.SURVIVAL, Compat.LOCAL, "Item Magnet",
-                () -> FeatureConfig.magnetIgnoreMine, v -> FeatureConfig.magnetIgnoreMine = v);
+                () -> FeatureConfig.magnetIgnoreMine, v -> {
+                    FeatureConfig.magnetIgnoreMine = v;
+                    if (v) FeatureConfig.magnetOnlyMine = false;
+                });
 
         f("Debuff Neutralizer", "Strips screen-shake and nuisance debuffs from your client render.",
                 Category.SURVIVAL, Compat.LOCAL,

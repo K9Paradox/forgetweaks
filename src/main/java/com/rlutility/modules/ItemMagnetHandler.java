@@ -65,16 +65,16 @@ public class ItemMagnetHandler {
             }
             if (BLACKLIST.contains(FeatureConfig.magnetBlacklist, id)) return false;
 
-            // EntityItem#getOwner returns a player *name* in 1.12.2, not a UUID string.
+            // 1.12 keeps the thrower and owner as player names, not UUIDs. Q-dropped items
+            // commonly have the thrower set while owner is still null, so check both fields.
+            String playerName = Minecraft.getMinecraft().player == null
+                    ? "" : Minecraft.getMinecraft().player.getName();
             String owner = entity.getOwner();
-            boolean mine = false;
-            if (owner != null && !owner.isEmpty() && Minecraft.getMinecraft().player != null) {
-                mine = owner.equalsIgnoreCase(Minecraft.getMinecraft().player.getName());
-            }
+            String thrower = entity.getThrower();
+            boolean mine = (owner != null && owner.equalsIgnoreCase(playerName))
+                    || (thrower != null && thrower.equalsIgnoreCase(playerName));
 
-            // "Ignore My Drops" wins if both are somehow enabled at once.
             if (FeatureConfig.magnetIgnoreMine && mine) return false;
-
             if (FeatureConfig.magnetOnlyMine && !mine) return false;
             return true;
         } catch (Throwable ignored) {
