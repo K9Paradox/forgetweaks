@@ -123,7 +123,7 @@ public class SirenGuardHandler {
     /** Equips earplugs into the helmet slot if we have them and the slot is not already plugged. */
     private boolean tryEquipEarplugs(Minecraft mc, EntityPlayerSP player) {
         try {
-            Item earplugs = Item.getByNameAndId("iceandfire:earplugs");
+            Item earplugs = Item.getByNameOrId("iceandfire:earplugs");
             if (earplugs == null || earplugs == Items.AIR) return false;
 
             ItemStack helmet = player.inventoryContainer.getSlot(5).getStack();
