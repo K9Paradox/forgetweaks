@@ -82,18 +82,34 @@ registry or `PlayerExtension.saveNBTData` NPEs on the next save.
   12) **or** a critical head/body wound (`FirstAidHelper.hasCriticalWound`), polled every tick
   plus on hurt events. Shared static `FastTriageHandler.tryEquipTotem` so the two handlers cannot
   click-fight.
-- **Flight persist is built-in** (setting removed): any airborne flying→not-flying edge triggers a
-  restore + `CPacketPlayerAbilities`, with a 3-second retry window for late resyncs (the arrow-hit
-  case). Sneak-to-descend is respected as deliberate; if the server revoked `allowFlying` itself
-  it is reported once in chat instead of silently retrying.
+- **Flight persist is built-in** (setting removed). A netty tap watches incoming
+  `SPacketPlayerAbilities`: a "flying=false" packet that lands while the client is still flying is
+  a server-side strip (damage/arrow resyncs) → restore + 3-second retry window. A double-jump
+  toggle turns flight off locally first, so its confirmation packet is ignored and manual
+  toggling works again. If the strip also says `allowFlying=false`, it is reported once in chat
+  and the client stops fighting it (No Fall then covers the descent).
+- **Auto Bandage also resyncs**: First Aid never syncs healer progress to the client (part updates
+  only ship on damage), so the client HUD kept showing old low part hearts while the server healed
+  — and the ledger thought parts were still wounded. The handler now sends First Aid's own
+  `MessageClientRequest(REQUEST_REFRESH)` after each application and periodically during treatment.
+- **Auto Hydrate rebuilt around the server's real trace**: the old client gate used
+  `Entity#rayTrace`, which cannot see fluids (no collision box) — so it never drank. Now mirrors
+  `world.rayTraceBlocks(..., stopOnLiquid=true)` at reach/2 plus the rain-drink check, and also
+  auto-uses carried drinks (juice / purified bottles / canteens) via `CPacketPlayerTryUseItem`.
+- **Auto Totem default threshold lowered to 6 HP** — 12 kept the totem parked in the off-hand
+  permanently.
 - **Auto-Buy Levels fixed**: requirements are read through the real API
   (`RequirementHolder.getRequirements()` → `SkillRequirement`); the old reflection looked for a
   Map field that does not exist, so it always reported "no requirements".
 - **ESP model outlines fixed (white outlines)**: `doRender` resets GL colour internally, so
   colour-then-doRender always drew white. ModelOutlineHandler now renders
-  `getMainModel().render(...)` directly with vanilla's transform sequence, keeping our colour;
-  entities without a readable model fall back to a coloured box, and style 4 with Model Outlines
-  switched off now falls back to boxes instead of nothing.
+  `getMainModel().render(...)` directly with vanilla's exact transform sequence — including the
+  `translate(0, -1.501F, 0)` from `prepareScale` that lifts flipped model space onto the entity's
+  feet (missing it sat the outline ~1.5 blocks too low) — keeping our colour; entities without a
+  readable model fall back to a coloured box, and style 4 with Model Outlines switched off now
+  falls back to boxes instead of nothing.
+- **No Fall gate widened**: the on-ground spoof no longer requires negative client velocity, so it
+  still covers descents where the client and server disagree about flight.
 - **Siren Guard (new)**: Ice and Fire sirens pull server-side, so they cannot be deleted
   client-side; the guard auto-equips earplugs (the real fix — server releases the charm) or
   auto-runs away from the siren when none are available (sprint speed beats the pull blend).

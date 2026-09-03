@@ -75,7 +75,10 @@ public class ClientProxy extends CommonProxy {
         MinecraftForge.EVENT_BUS.register(new NoSlowdownHandler());
         MinecraftForge.EVENT_BUS.register(new StepSpeedHandler());
         MinecraftForge.EVENT_BUS.register(new JesusHandler());
-        MinecraftForge.EVENT_BUS.register(new FlightHandler());
+        FlightHandler flightHandler = new FlightHandler();
+        MinecraftForge.EVENT_BUS.register(flightHandler);
+        // The network-connect events (used to tap incoming abilities packets) arrive on the FML bus.
+        net.minecraftforge.fml.common.FMLCommonHandler.instance().bus().register(flightHandler);
         MinecraftForge.EVENT_BUS.register(new ClickAuraHandler());
         MinecraftForge.EVENT_BUS.register(new ReachHandler());
         MinecraftForge.EVENT_BUS.register(new SirenGuardHandler());

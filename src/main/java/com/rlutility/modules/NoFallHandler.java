@@ -64,8 +64,11 @@ public class NoFallHandler {
         if (AutoCritHandler.critWindow > 0) return; // let the crit hop keep its fall distance
         if (player.isElytraFlying()) return;
 
-        // Only lie about being grounded once the drop would actually hurt.
-        if (!player.onGround && player.motionY < 0.0D && player.fallDistance > 2.0F) {
+        // Only lie about being grounded once the drop would actually hurt. No motionY gate: when
+        // the server disagrees about flight (ability revoked server-side) the client can be
+        // "floating" with zero velocity while the server applies gravity - fallDistance still
+        // climbs via the packets below, and this keeps covering that case too.
+        if (!player.onGround && player.fallDistance > 2.0F) {
             player.connection.sendPacket(new CPacketPlayer(true));
             player.fallDistance = 0.0F;
         }

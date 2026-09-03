@@ -7,6 +7,7 @@ import ichttt.mods.firstaid.api.damagesystem.AbstractPlayerDamageModel;
 import ichttt.mods.firstaid.api.enums.EnumPlayerPart;
 import ichttt.mods.firstaid.common.items.FirstAidItems;
 import ichttt.mods.firstaid.common.network.MessageApplyHealingItem;
+import ichttt.mods.firstaid.common.network.MessageClientRequest;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.inventory.ClickType;
@@ -41,11 +42,23 @@ import java.util.EnumMap;
  * considered busy for a long window ({@link #HEAL_WINDOW_TICKS}). The ledger entry clears early
  * once the part's synced health shows it healed. No packet is sent at a part that is already
  * recorded as being treated, so heal timers finally run to completion.
+ *
+ * <h3>Why the part hearts looked stuck even while healing worked</h3>
+ * Reading First Aid 1.6.22: part sync packets ({@code MessageUpdatePart}) are only sent from the
+ * <em>damage</em> distribution path, and full resyncs only from damage events - a healer quietly
+ * restoring a part never syncs anything. The vanilla health bar rises (it is synced through the
+ * data manager) while the per-part hearts on the client stay at their last-damaged value. So the
+ * handler also sends {@code MessageClientRequest(REQUEST_REFRESH)} - First Aid's own C2S resync
+ * request - after each application and periodically during treatment, keeping the client model
+ * truthful and letting the ledger clear as soon as the server actually finishes a part.
  */
 public class FirstAidHelper {
 
     private static boolean modLoaded = false;
     private int checkCooldown = 0;
+    /** Ticks until the next forced damage-model resync request; -1 = none pending. */
+    private int pendingResync = -1;
+    private int resyncPeriod = 0;
 
     /** Ticks a part is treated as "healer active" after we send one application packet. */
     private static final int HEAL_WINDOW_TICKS = 900; // 45 seconds
@@ -107,6 +120,20 @@ public class FirstAidHelper {
             treatingTicks.values().removeIf(t -> t <= 0);
         }
 
+        // Forced resync requests: one shortly after an application, then periodic ones while any
+        // part is recorded as treating, so the client model tracks the server's real progress.
+        if (pendingResync > 0 && --pendingResync == 0) {
+            requestResync();
+        }
+        if (!treatingTicks.isEmpty()) {
+            if (++resyncPeriod >= 120) {
+                resyncPeriod = 0;
+                requestResync();
+            }
+        } else {
+            resyncPeriod = 0;
+        }
+
         if (!FeatureConfig.firstAidAutoHeal) return;
 
         if (checkCooldown > 0) {
@@ -116,6 +143,17 @@ public class FirstAidHelper {
         checkCooldown = 20; // one decision per second; healing is slow anyway
 
         triage(mc, player);
+    }
+
+    /** First Aid's own C2S request for a full server->client damage model sync. */
+    private static void requestResync() {
+        try {
+            if (FirstAid.NETWORKING != null) {
+                FirstAid.NETWORKING.sendToServer(
+                        new MessageClientRequest(MessageClientRequest.Type.REQUEST_REFRESH));
+            }
+        } catch (Throwable ignored) {
+        }
     }
 
     private void triage(Minecraft mc, EntityPlayerSP player) {
@@ -220,6 +258,8 @@ public class FirstAidHelper {
             // (or the window expires, at which point a re-application is legitimate).
             treatingTicks.put(part, HEAL_WINDOW_TICKS);
             checkCooldown = 25;
+            // Healing never syncs to the client on its own - ask for a refresh shortly.
+            pendingResync = 20;
             player.sendMessage(new TextComponentString("\u00a76[RLUtility] \u00a7aApplied healing to "
                     + part.name() + " \u00a77- next application only if it does not finish."));
         }

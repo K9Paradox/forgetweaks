@@ -29,8 +29,9 @@ public final class FeatureConfig {
     public static double antiKnockbackVertical = 0.0D;
     public static boolean firstAidAutoHeal = true;
     public static boolean fastTriage = true;
-    /** Totem hot-swap triggers at this much vanilla health (or earlier on First Aid criticals). */
-    public static double totemEquipAtHealth = 12.0D;
+    /** Totem hot-swap triggers at this much vanilla health (or earlier on First Aid criticals).
+     *  Kept low on purpose: too high and the totem lives in the off-hand permanently. */
+    public static double totemEquipAtHealth = 6.0D;
     public static boolean autoArmor = false;
     public static boolean autoEat = false;
     public static int autoEatThreshold = 12;

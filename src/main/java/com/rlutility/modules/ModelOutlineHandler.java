@@ -136,10 +136,12 @@ public class ModelOutlineHandler {
     }
 
     /**
-     * Drives the renderer's main model directly, with the same transform sequence vanilla uses in
+     * Drives the renderer's main model directly, with the exact transform sequence vanilla uses in
      * {@code doRender}: translate to the render position, rotate by the interpolated body yaw,
-     * flip the Y axis (models are authored Y-down). Returns false when no model is available so
-     * the caller can fall back to a box.
+     * flip the Y axis (models are authored Y-down) and then the {@code translate(0, -1.501F, 0)}
+     * from {@code prepareScale} - which, in flipped space, lifts the model up onto the entity's
+     * feet. Missing that last translate was why the first version of this sat ~1.5 blocks too low.
+     * Returns false when no model is available so the caller can fall back to a box.
      */
     private static boolean drawModelOutline(RenderLivingBase<?> renderer, EntityLivingBase entity,
                                             double x, double y, double z, float partialTicks) {
@@ -152,10 +154,19 @@ public class ModelOutlineHandler {
         if (model == null) return false;
 
         // Interpolated animation state, mirroring RenderLivingBase#doRender.
-        float limbSwingAmount = entity.prevLimbSwingAmount
-                + (entity.limbSwingAmount - entity.prevLimbSwingAmount) * partialTicks;
-        float limbSwing = entity.limbSwing - entity.limbSwingAmount * (1.0F - partialTicks);
-        if (limbSwingAmount > 1.0F) limbSwingAmount = 1.0F;
+        float limbSwingAmount;
+        float limbSwing;
+        if (entity.isRiding()) {
+            // Vanilla zeroes both while riding.
+            limbSwingAmount = 0.0F;
+            limbSwing = 0.0F;
+        } else {
+            limbSwingAmount = entity.prevLimbSwingAmount
+                    + (entity.limbSwingAmount - entity.prevLimbSwingAmount) * partialTicks;
+            limbSwing = entity.limbSwing - entity.limbSwingAmount * (1.0F - partialTicks);
+            if (entity.isChild()) limbSwing *= 3.0F;
+            if (limbSwingAmount > 1.0F) limbSwingAmount = 1.0F;
+        }
         float ageInTicks = entity.ticksExisted + partialTicks;
         float headYaw = interpolateRotation(entity.prevRotationYawHead, entity.rotationYawHead, partialTicks);
         float bodyYaw = interpolateRotation(entity.prevRenderYawOffset, entity.renderYawOffset, partialTicks);
@@ -168,10 +179,12 @@ public class ModelOutlineHandler {
             model.swingProgress = entity.getSwingProgress(partialTicks);
         } catch (Throwable ignored) {}
 
-        GlStateManager.translate(x, y, z);
+        GlStateManager.translate((float) x, (float) y, (float) z);
         GlStateManager.rotate(180.0F - bodyYaw, 0.0F, 1.0F, 0.0F);
+        // prepareScale, minus the renderer-specific preRenderCallback scaling:
+        // Y flip, then the -1.501 lift that puts model space on top of the entity.
         GlStateManager.scale(-1.0F, -1.0F, 1.0F);
-        // Child proportions are handled by the model itself through model.isChild above.
+        GlStateManager.translate(0.0F, -1.501F, 0.0F);
 
         try {
             // Pose the model parts first (heads, tails, wings), then trace the geometry.

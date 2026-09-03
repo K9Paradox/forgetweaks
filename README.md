@@ -272,16 +272,25 @@ flag. `gradle checkRlcraftDeps` lists which ones are missing.
 
 - **Auto Bandage actually heals now.** It no longer re-applies a fresh healer to a part that is
   already being treated (which kept resetting the heal timer and consuming supplies for nothing);
-  it tracks its own treatment window per limb. Morphine is no longer mis-sent as a healer.
-- **Auto Totem actually fires.** Configurable health threshold (default 12) **or** a First Aid
+  it tracks its own treatment window per limb, and forces First Aid damage-model resyncs
+  (`REQUEST_REFRESH`) because healers never sync their progress on their own — that was why part
+  hearts looked stuck while health rose. Morphine is no longer mis-sent as a healer.
+- **Auto Totem actually fires.** Configurable health threshold (default 6) **or** a First Aid
   critical head/body wound triggers the off-hand swap — the old `health<=7` check never crossed
   before First Aid killed you.
 - **Flight persist is built-in** with a retry window, so late ability resyncs (e.g. an arrow hit)
-  no longer drop you out of the sky.
+  no longer drop you out of the sky. The restore is triggered by a tap on incoming abilities
+  packets, so double-jump to toggle flight off still works; server-side permission revocation is
+  reported in chat once instead of fighting forever.
 - **Auto-Buy Levels fixed** — requirements are read through Reskillable's real API instead of a
   reflection guess that never matched.
-- **ESP outlines are no longer white.** Model outlines render the entity's model directly with the
-  category colour; anything without a model falls back to a coloured box.
+- **Auto Hydrate fixed** — it now mirrors the server's real water trace (fluids have no collision
+  box, so the old check never saw water), supports rain drinking when the server allows it, and
+  auto-uses carried drinks (juice, purified bottles, canteens).
+- **ESP outlines are no longer white or offset.** Model outlines render the entity's model
+  directly with the category colour and vanilla's exact transform (the first revision missed the
+  model-space lift and sat ~1.5 blocks too low); anything without a model falls back to a
+  coloured box.
 - **New:** Siren Guard (Movement), Reach (Combat), Item Magnet "Ignore My Drops", Auto Hydrate
   "Safe Water Only", and a colour-coded thirst/temperature HUD line.
 - **Removed:** Timer (didn't work and wasn't wanted).
