@@ -14,6 +14,10 @@ import net.minecraftforge.client.event.RenderLivingEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import org.lwjgl.opengl.GL11;
 
+import java.lang.reflect.Method;
+import java.util.IdentityHashMap;
+import java.util.Map;
+
 /**
  * Crisp wireframe outline of the entity's actual model, with adjustable thickness.
  *
@@ -34,6 +38,16 @@ import org.lwjgl.opengl.GL11;
  * sequence vanilla uses (translate, body-yaw rotation, the Y-flip scale) so the wireframe sits
  * exactly on the rendered mob. Whatever colour is in the GL state when the model draws is the
  * colour of the outline.
+ *
+ * <h3>Why outlines used to be tiny on dragons</h3>
+ * Vanilla's {@code prepareScale} runs the renderer's {@code preRenderCallback} between the Y-flip
+ * and the lift; that hook is where size-scaled mobs apply their scale (Ice and Fire's
+ * {@code RenderDragonBase} scales by {@code getRenderSize() / 3} - up to several times). The
+ * first version skipped the hook, so the re-rendered model drew at base size and the wireframe
+ * looked like a hatchling sitting inside the real dragon. The callback is now invoked
+ * reflectively (base-class signature; generic bridge methods route overridden versions) so any
+ * renderer's scale is reproduced. The outline colour is re-applied afterwards in case a callback
+ * touches GL colour.
  *
  * <h3>Fallback</h3>
  * Entities whose renderer has no readable main model get a coloured box wireframe instead, so
@@ -101,14 +115,13 @@ public class ModelOutlineHandler {
             GL11.glLineWidth(width);
             GL11.glPolygonMode(GL11.GL_FRONT_AND_BACK, GL11.GL_LINE);
 
-            // The colour is set right before the model draws and nothing in between resets it,
-            // which is exactly what the old doRender path failed to guarantee.
-            GlStateManager.color(color[0], color[1], color[2], 1.0F);
-
+            // The colour is applied inside drawModelOutline right before the model draws and
+            // nothing in between resets it, which is exactly what the old doRender path failed
+            // to guarantee.
             boolean drawn = false;
             if (renderer instanceof RenderLivingBase) {
                 drawn = drawModelOutline((RenderLivingBase<?>) renderer, entity,
-                        event.getX(), event.getY(), event.getZ(), partialTicks);
+                        event.getX(), event.getY(), event.getZ(), partialTicks, color);
             }
             if (!drawn) {
                 drawBoxFallback(entity, event.getX(), event.getY(), event.getZ(), color);
@@ -144,7 +157,8 @@ public class ModelOutlineHandler {
      * Returns false when no model is available so the caller can fall back to a box.
      */
     private static boolean drawModelOutline(RenderLivingBase<?> renderer, EntityLivingBase entity,
-                                            double x, double y, double z, float partialTicks) {
+                                            double x, double y, double z, float partialTicks,
+                                            float[] color) {
         ModelBase model;
         try {
             model = renderer.getMainModel();
@@ -181,9 +195,11 @@ public class ModelOutlineHandler {
 
         GlStateManager.translate((float) x, (float) y, (float) z);
         GlStateManager.rotate(180.0F - bodyYaw, 0.0F, 1.0F, 0.0F);
-        // prepareScale, minus the renderer-specific preRenderCallback scaling:
-        // Y flip, then the -1.501 lift that puts model space on top of the entity.
+        // prepareScale: Y flip, the renderer's own preRenderCallback scaling (this is where
+        // dragons and other size-scaled mobs apply their size), then the -1.501 lift that puts
+        // model space on top of the entity.
         GlStateManager.scale(-1.0F, -1.0F, 1.0F);
+        applyPreRenderCallback(renderer, entity, partialTicks);
         GlStateManager.translate(0.0F, -1.501F, 0.0F);
 
         try {
@@ -192,12 +208,60 @@ public class ModelOutlineHandler {
         } catch (Throwable ignored) {
             // Some modded models are picky; an unposed outline is better than none.
         }
+        // Re-assert the outline colour: a preRenderCallback may have touched GL colour.
+        GlStateManager.color(color[0], color[1], color[2], 1.0F);
         try {
             model.render(entity, limbSwing, limbSwingAmount, ageInTicks, netHeadYaw, headPitch, 0.0625F);
         } catch (Throwable t) {
             return false;
         }
         return true;
+    }
+
+    /** Cache of preRenderCallback lookups per renderer class; null means "none found". */
+    private static final Map<Class<?>, Method> preRenderCache = new IdentityHashMap<>();
+
+    /**
+     * Reflectively runs the renderer's {@code preRenderCallback(entity, partialTicks)}, the hook
+     * vanilla's {@code prepareScale} invokes between the Y-flip and the lift. Ice and Fire's
+     * dragon renderers scale the model by {@code getRenderSize() / 3} here, so skipping it made
+     * every dragon outline draw at base hatchling size. The lookup uses the base-class erased
+     * signature ({@code EntityLivingBase, float}); covariant overrides get compiler-generated
+     * bridge methods with that exact signature, so both plain and overridden versions resolve.
+     * Any failure silently degrades to the un-scaled outline - never a render exception.
+     */
+    private static void applyPreRenderCallback(RenderLivingBase<?> renderer, EntityLivingBase entity,
+                                               float partialTicks) {
+        try {
+            Class<?> rendererClass = renderer.getClass();
+            Method method;
+            synchronized (preRenderCache) {
+                method = preRenderCache.get(rendererClass);
+                if (method == null && !preRenderCache.containsKey(rendererClass)) {
+                    method = findPreRenderCallback(rendererClass);
+                    preRenderCache.put(rendererClass, method);
+                }
+            }
+            if (method == null) return;
+            method.invoke(renderer, entity, partialTicks);
+        } catch (Throwable ignored) {
+            // A scaling hook that throws must not take the frame down.
+        }
+    }
+
+    /** Walks the class hierarchy for the protected preRenderCallback hook. */
+    private static Method findPreRenderCallback(Class<?> rendererClass) {
+        for (Class<?> c = rendererClass; c != null && c != Object.class; c = c.getSuperclass()) {
+            try {
+                Method m = c.getDeclaredMethod("preRenderCallback", EntityLivingBase.class, float.class);
+                m.setAccessible(true);
+                return m;
+            } catch (NoSuchMethodException e) {
+                // Covariant overrides declare (SpecificEntity, float) - keep walking; the base
+                // class always carries the erased-signature declaration or a bridge.
+            }
+        }
+        return null;
     }
 
     /** Colored box for entities whose model could not be traced. */

@@ -6,7 +6,20 @@ read for missing validation. Status as of 2026-09-03.
 
 ## CONFIRMED EXPLOITABLE
 
-### Ice and Fire 1.8.4 (exact RLCraft version — branch `1.8.4-1.12.2`)
+### Ice and Fire — RLCraft actually pins **1.7.1** (CF file 2693547), not 1.8.4
+
+> **1.7.1 correction (verified against the real source):** The first five modules shipped in
+> 1.7.0 were audited against 1.8.4 and came out inert in-game. Re-auditing the build RLCraft
+> 2.9.3 actually ships (IaF **1.7.1**, March 2019) showed: `MessageStartRidingMob` does not
+> exist in 1.7.1 (mount hijack impossible — replaced by Dragon Smith), `MessagePlayerHitMultipart`
+> carries only `creatureID` (no `extraData`), `MessageStoneStatue` checks no held item at all,
+> and `MessageDragonArmor(dragonId, armor_index, armor_type)` exists with **no ownership check
+> and no item consumed** (`setArmorInSlot` recomputes the ARMOR attribute server-side).
+> Messages 1-3, 6, 7 below keep their conclusions in 1.7.1 (no range checks in the 1.7.1
+> handlers either); 4, 5, 8, 9 were re-read in 1.8.4 only — treat their details as
+> version-specific. Discriminator numbers are NOT stable across versions and must not be relied
+> on; the shipped helper routes by message class through the mod's own wrapper.
+
 Channel: LLibrary `@NetworkWrapper` on `IceAndFire.NETWORK_WRAPPER` (channel name `iceandfire`).
 All messages below are C2S with NO permission check; most have NO range/ownership checks.
 

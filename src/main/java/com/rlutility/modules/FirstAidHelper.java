@@ -2,10 +2,11 @@ package com.rlutility.modules;
 
 import ichttt.mods.firstaid.FirstAid;
 import ichttt.mods.firstaid.api.CapabilityExtendedHealthSystem;
+import ichttt.mods.firstaid.api.FirstAidRegistry;
 import ichttt.mods.firstaid.api.damagesystem.AbstractDamageablePart;
 import ichttt.mods.firstaid.api.damagesystem.AbstractPlayerDamageModel;
 import ichttt.mods.firstaid.api.enums.EnumPlayerPart;
-import ichttt.mods.firstaid.common.items.FirstAidItems;
+import ichttt.mods.firstaid.api.item.ItemHealing;
 import ichttt.mods.firstaid.common.network.MessageApplyHealingItem;
 import ichttt.mods.firstaid.common.network.MessageClientRequest;
 import net.minecraft.client.Minecraft;
@@ -217,6 +218,11 @@ public class FirstAidHelper {
     private void applyHealingItemToPart(Minecraft mc, EntityPlayerSP player, EnumPlayerPart part) {
         if (mc.playerController == null || mc.getConnection() == null) return;
 
+        // The hotbar slot that was selected before we did anything - restored afterwards so
+        // healing never leaves the player on a different slot than they were on.
+        int previousSlot = player.inventory.currentItem;
+        boolean switchedSlot = false;
+
         // 1. Already holding a healing item?
         EnumHand handToUse = null;
         if (isHealingItem(player.getHeldItemMainhand())) {
@@ -232,6 +238,7 @@ public class FirstAidHelper {
                     player.inventory.currentItem = i;
                     mc.getConnection().sendPacket(
                             new net.minecraft.network.play.client.CPacketHeldItemChange(i));
+                    switchedSlot = true;
                     handToUse = EnumHand.MAIN_HAND;
                     break;
                 }
@@ -239,6 +246,7 @@ public class FirstAidHelper {
         }
 
         // 3. Main inventory: swap the stack into the selected hotbar slot with real clicks.
+        // The selection itself does not move here, so nothing to restore for this path.
         if (handToUse == null) {
             for (int i = 9; i <= 35; i++) {
                 if (isHealingItem(player.inventoryContainer.getSlot(i).getStack())) {
@@ -254,6 +262,15 @@ public class FirstAidHelper {
 
         if (handToUse != null && FirstAid.NETWORKING != null) {
             FirstAid.NETWORKING.sendToServer(new MessageApplyHealingItem(part, handToUse));
+            // If we switched hotbar slots to grab the healer, switch straight back. The healer
+            // ticks server-side on the wound itself, so holding something else afterwards does
+            // not interrupt treatment. Sent after the apply packet so the server processes the
+            // heal with the healer still selected.
+            if (switchedSlot) {
+                player.inventory.currentItem = previousSlot;
+                mc.getConnection().sendPacket(
+                        new net.minecraft.network.play.client.CPacketHeldItemChange(previousSlot));
+            }
             // Record the application so we leave this part's healer alone until it finishes
             // (or the window expires, at which point a re-application is legitimate).
             treatingTicks.put(part, HEAL_WINDOW_TICKS);
@@ -265,11 +282,23 @@ public class FirstAidHelper {
         }
     }
 
-    /** Bandages and plasters only. Morphine is a debuff cleanser - it has no registered healer,
-     *  so the server would reject and log it if we sent it. */
+    /**
+     * True for every healing item the server will accept, not just bandage and plaster. The
+     * server-side handler validates through {@code FirstAidRegistry.getPartHealer(stack)} -
+     * anything that yields a healer there is applied, anything else is rejected with a chat
+     * message - so we run the exact same registry lookup client-side. The {@code instanceof
+     * ItemHealing} fallback covers First Aid's own API base class (and every
+     * {@code DefaultItemHealing}) in case the registry accessor is not available yet; morphine
+     * is neither and stays correctly excluded.
+     */
     private boolean isHealingItem(ItemStack stack) {
         if (stack == null || stack.isEmpty()) return false;
+        try {
+            FirstAidRegistry registry = FirstAidRegistry.getImpl();
+            if (registry != null && registry.getPartHealer(stack) != null) return true;
+        } catch (Throwable ignored) {
+        }
         Item item = stack.getItem();
-        return item == FirstAidItems.BANDAGE || item == FirstAidItems.PLASTER;
+        return item instanceof ItemHealing;
     }
 }

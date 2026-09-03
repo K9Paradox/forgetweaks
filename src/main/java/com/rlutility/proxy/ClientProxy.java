@@ -39,6 +39,7 @@ import com.rlutility.modules.ReskillableHelper;
 import com.rlutility.modules.ReachHandler;
 import com.rlutility.modules.SimpleDifficultyHelper;
 import com.rlutility.modules.SirenGuardHandler;
+import com.rlutility.modules.ThirstBlurSuppressor;
 import com.rlutility.modules.StepSpeedHandler;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.settings.KeyBinding;
@@ -101,6 +102,7 @@ public class ClientProxy extends CommonProxy {
         MinecraftForge.EVENT_BUS.register(new SimpleDifficultyHelper());
 
         // ---- client-side visuals / quality of life --------------------------
+        MinecraftForge.EVENT_BUS.register(new ThirstBlurSuppressor());
         MinecraftForge.EVENT_BUS.register(new DebuffPurgerHandler());
         MinecraftForge.EVENT_BUS.register(new ReskillableHelper());
         MinecraftForge.EVENT_BUS.register(new ReskillableClientUnlock());

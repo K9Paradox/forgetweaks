@@ -19,33 +19,37 @@ import java.util.List;
  * Gateway for crafting Ice and Fire packets on its own network channel.
  *
  * <h3>Why this exists</h3>
- * Ice and Fire 1.8.4 (the exact build RLCraft 2.9.3 ships) registers a set of client-to-server
- * packets through LLibrary's {@code @NetworkWrapper} system and processes several of them with
- * little or no validation. Audited against the {@code 1.8.4-1.12.2} source branch:
+ * RLCraft 2.9.3 pins Ice and Fire to CurseForge file 2693547 - that is
+ * <b>iceandfire-1.7.1-1.12.2</b> (March 2019), not the later 1.8.x line. Audited against the
+ * actual 1.7.1 source, the mod registers these client-to-server packets through LLibrary's
+ * {@code @NetworkWrapper} system and processes several of them with zero validation:
  *
  * <ul>
- *   <li>{@code MessagePlayerHitMultipart} (discriminator 13) - the server performs a real weapon
- *       attack ({@code attackTargetEntityWithCurrentItem}) on any entity the client names within
- *       100 blocks. That is a ranged melee hit: full damage, enchantments and sweep included.</li>
- *   <li>{@code MessageMultipartInteract} (discriminator 10) - the server applies
+ *   <li>{@code MessagePlayerHitMultipart} - the server performs a real weapon attack
+ *       ({@code attackTargetEntityWithCurrentItem}) on any {@code EntityLivingBase} the client
+ *       names by id. No range check, no ownership check. Ranged melee with full enchantments.</li>
+ *   <li>{@code MessageMultipartInteract} - the server applies
  *       {@code attackEntityFrom(causeMobDamage(player), message.dmg)} where {@code dmg} is a
- *       float read straight from the packet. Arbitrary damage at up to 100 blocks.</li>
- *   <li>{@code MessageStoneStatue} (discriminator 3) - with a gorgon head in the main hand the
- *       server toggles the stone-petrified flag on any entity by id, no range limit at all.</li>
- *   <li>{@code MessageSirenSong} (discriminator 8) - toggles any siren's singing state by id,
- *       no range limit. Lets us silence sirens remotely.</li>
- *   <li>{@code MessageStartRidingMob} (discriminator 19) - starts/stops riding any
- *       {@code ISyncMount + EntityTameable} entity by id with no ownership check.</li>
+ *       float read straight from the packet. Arbitrary damage, no range check.</li>
+ *   <li>{@code MessageStoneStatue} - sets the {@code StoneEntityProperties.isStone} flag on any
+ *       {@code EntityLiving} by id. No range check and no held-item requirement in 1.7.1.</li>
+ *   <li>{@code MessageSirenSong} - calls {@code setSinging(boolean)} on any siren by id,
+ *       no range check.</li>
+ *   <li>{@code MessageDragonArmor} - calls {@code setArmorInSlot(index, type)} on any
+ *       {@code EntityDragonBase} by id - no ownership check, no item consumed. Type 0 strips
+ *       armor, 3 is diamond-tier.</li>
  * </ul>
+ *
+ * Note: 1.7.1 has NO {@code MessageStartRidingMob} (that message only exists in 1.8.x), so a
+ * mount-hijack exploit is impossible on this build.
  *
  * <h3>How we send them</h3>
  * We never touch a wire format ourselves. The helper resolves Ice and Fire's own
  * {@code IceAndFire.NETWORK_WRAPPER} (a Forge {@link SimpleNetworkWrapper}, channel name
- * {@code "iceandfire"} - LLibrary names the channel after the mod id) and constructs the mod's
- * real message classes reflectively. {@code SimpleNetworkWrapper.sendToServer} then looks up the
- * discriminator by message class, so even if the discriminator table ever shifted we would still
- * be routed correctly - as long as the class names and field names hold, which they do across
- * the entire 1.8.x line.
+ * {@code "iceandfire"}) and constructs the mod's real message classes reflectively.
+ * {@code SimpleNetworkWrapper.sendToServer} looks up the discriminator by message class, so we
+ * are always routed correctly regardless of the table order. Each message class is resolved
+ * independently: if a future rebuild drops or renames one of them only that module degrades.
  */
 public final class IceAndFireHelper {
 
@@ -59,10 +63,17 @@ public final class IceAndFireHelper {
     private static Class<?> msgMultipartInteract = null;
     private static Class<?> msgStoneStatue = null;
     private static Class<?> msgSirenSong = null;
-    private static Class<?> msgStartRiding = null;
-    private static Class<?> syncMountClass = null;
+    private static Class<?> msgDragonArmor = null;
 
     private static boolean warned = false;
+
+    private static Class<?> tryClass(String name) {
+        try {
+            return Class.forName(name);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
 
     /** Resolves Ice and Fire's network wrapper and message classes once. */
     public static synchronized boolean available() {
@@ -71,19 +82,25 @@ public final class IceAndFireHelper {
         try {
             Class<?> modClass = Class.forName("com.github.alexthe666.iceandfire.IceAndFire");
             Object w = modClass.getField("NETWORK_WRAPPER").get(null);
-            if (!(w instanceof SimpleNetworkWrapper)) return false;
-            wrapper = (SimpleNetworkWrapper) w;
-
-            msgHitMultipart = Class.forName("com.github.alexthe666.iceandfire.message.MessagePlayerHitMultipart");
-            msgMultipartInteract = Class.forName("com.github.alexthe666.iceandfire.message.MessageMultipartInteract");
-            msgStoneStatue = Class.forName("com.github.alexthe666.iceandfire.message.MessageStoneStatue");
-            msgSirenSong = Class.forName("com.github.alexthe666.iceandfire.message.MessageSirenSong");
-            msgStartRiding = Class.forName("com.github.alexthe666.iceandfire.message.MessageStartRidingMob");
-            syncMountClass = Class.forName("com.github.alexthe666.iceandfire.entity.ISyncMount");
-            available = true;
+            if (w instanceof SimpleNetworkWrapper) {
+                wrapper = (SimpleNetworkWrapper) w;
+            }
         } catch (Throwable t) {
-            available = false;
+            wrapper = null;
         }
+        if (wrapper == null) {
+            available = false;
+            return false;
+        }
+
+        msgHitMultipart = tryClass("com.github.alexthe666.iceandfire.message.MessagePlayerHitMultipart");
+        msgMultipartInteract = tryClass("com.github.alexthe666.iceandfire.message.MessageMultipartInteract");
+        msgStoneStatue = tryClass("com.github.alexthe666.iceandfire.message.MessageStoneStatue");
+        msgSirenSong = tryClass("com.github.alexthe666.iceandfire.message.MessageSirenSong");
+        msgDragonArmor = tryClass("com.github.alexthe666.iceandfire.message.MessageDragonArmor");
+
+        available = msgHitMultipart != null || msgMultipartInteract != null
+                || msgStoneStatue != null || msgSirenSong != null || msgDragonArmor != null;
         return available;
     }
 
@@ -124,21 +141,21 @@ public final class IceAndFireHelper {
 
     // ------------------------------------------------------------- messages
 
-    /** Server-side: real weapon attack on the named entity within 100 blocks. */
+    /** Server-side: real weapon attack on the named entity (handler has no range check). */
     public static boolean sendHit(int entityId) {
         return send(build(msgHitMultipart,
-                new String[] { "creatureID", "extraData" },
-                new Object[] { entityId, 0 }));
+                new String[] { "creatureID" },
+                new Object[] { entityId }));
     }
 
-    /** Server-side: applies {@code damage} straight to the named living entity within 100 blocks. */
+    /** Server-side: applies {@code damage} straight to the named living entity. */
     public static boolean sendDamage(int entityId, float damage) {
         return send(build(msgMultipartInteract,
                 new String[] { "creatureID", "dmg" },
                 new Object[] { entityId, damage }));
     }
 
-    /** Server-side: toggles the gorgon petrification flag on any entity; requires gorgon head held. */
+    /** Server-side: toggles the petrification flag on any EntityLiving. No item needed in 1.7.1. */
     public static boolean sendStoneStatue(int entityId, boolean petrify) {
         return send(build(msgStoneStatue,
                 new String[] { "entityId", "isStone" },
@@ -152,16 +169,14 @@ public final class IceAndFireHelper {
                 new Object[] { entityId, singing }));
     }
 
-    /** Server-side: mount/unmount any ISyncMount + EntityTameable by id. */
-    public static boolean sendStartRiding(int entityId, boolean ride) {
-        return send(build(msgStartRiding,
-                new String[] { "dragonId", "ride" },
-                new Object[] { entityId, ride }));
-    }
-
-    /** True when the entity implements Ice and Fire's ISyncMount interface. */
-    public static boolean isSyncMount(Entity e) {
-        return syncMountClass != null && syncMountClass.isInstance(e);
+    /**
+     * Server-side: sets one armor slot on any dragon, no ownership check and no item consumed.
+     * Slots: 0 head, 1 neck, 2 body, 3 tail. Type: 0 none, 1 iron, 2 gold, 3 diamond.
+     */
+    public static boolean sendDragonArmor(int entityId, int slot, int armorType) {
+        return send(build(msgDragonArmor,
+                new String[] { "dragonId", "armor_index", "armor_type" },
+                new Object[] { entityId, slot, armorType }));
     }
 
     // ------------------------------------------------------------ targeting
@@ -169,7 +184,7 @@ public final class IceAndFireHelper {
     /**
      * Ray-cast along the player's look vector for up to {@code range} blocks and return the
      * nearest living entity whose (border-grown) hitbox the ray touches, honoring block
-     * occlusion. The server handlers accept targets out to 100 blocks, but 1.12's vanilla
+     * occlusion. The server handlers accept targets at any distance, but 1.12's vanilla
      * {@code objectMouseOver} only sees entities within normal reach, so we trace ourselves.
      */
     public static EntityLivingBase entityOnCrosshair(EntityPlayerSP player, double range) {

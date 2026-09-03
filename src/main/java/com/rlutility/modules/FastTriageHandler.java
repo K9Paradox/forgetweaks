@@ -5,6 +5,7 @@ import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.init.Items;
 import net.minecraft.inventory.ClickType;
 import net.minecraft.item.ItemStack;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.text.TextComponentString;
 import net.minecraftforge.event.entity.living.LivingHurtEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
@@ -19,10 +20,15 @@ import net.minecraftforge.fml.common.gameevent.TickEvent;
  * reaching zero - which can happen while the averaged bar still shows ten or more hearts. The old
  * threshold simply never crossed before you were dead.
  *
- * <p>The trigger is now two-fold: vanilla health dropping to a configurable threshold (default
- * 12 of 20, so there is actually time left), <em>or</em> - when First Aid is installed - a
- * critical head/body wound, which is what actually kills you in this pack. Both are also polled
- * once per second, not only on damage events, so a big hit that takes you straight from full to
+ * <p>The trigger is now three-fold: vanilla health dropping to a configurable threshold (default
+ * 6 of 20 - the totem is armed only when things are genuinely dire, per user preference),
+ * <em>or</em> - when First Aid is installed - a
+ * critical head/body wound, which is what actually kills you in this pack, <em>or</em> a
+ * predictive lethal-fall check: while airborne and descending, the vanilla fall-damage formula
+ * ({@code floor(fallDistance) - 3}) is compared against current health, and the totem is armed
+ * BEFORE impact when the landing would be lethal. That closes the insta-kill gap - the hurt
+ * handler alone can only react after the killing blow has already landed. All triggers are
+ * polled every tick, not only on damage events, so a hit that takes you straight from full to
  * zero still arms a totem for the follow-up hit.</p>
  *
  * <p>The swap itself is three real inventory clicks (pick up totem, swap with offhand slot 45,
@@ -69,7 +75,8 @@ public class FastTriageHandler {
         double threshold = Math.max(1.0D, Math.min(20.0D, FeatureConfig.totemEquipAtHealth));
         boolean lowHealth = player.getHealth() <= threshold;
         boolean criticalWound = FirstAidHelper.hasCriticalWound(player);
-        if (!lowHealth && !criticalWound) return;
+        boolean lethalFall = isLethalFall(player);
+        if (!lowHealth && !criticalWound && !lethalFall) return;
 
         // Offhand already carries a totem - nothing to do.
         ItemStack offhandStack = player.getHeldItemOffhand();
@@ -87,7 +94,7 @@ public class FastTriageHandler {
                 mc.playerController.windowClick(0, i, 0, ClickType.PICKUP, player);
 
                 player.sendMessage(new TextComponentString("\u00a76[RLUtility] \u00a7aAuto Totem "
-                        + (criticalWound ? "(critical wound)" : "(low health)")
+                        + (lethalFall ? "(lethal fall)" : criticalWound ? "(critical wound)" : "(low health)")
                         + " moved a Totem of Undying to the off-hand."));
                 equipCooldown = 20;
                 return;
@@ -95,5 +102,27 @@ public class FastTriageHandler {
         }
         // No totem found - do not spam clicks, but re-check reasonably soon.
         equipCooldown = 10;
+    }
+
+    /**
+     * Predictive lethal-fall check. Fall damage is one-shot: the hurt event only fires once the
+     * killing impact has already been applied, so reacting there cannot save us - the totem has
+     * to be in the offhand BEFORE landing. The server computes fall damage from the client-synced
+     * {@code fallDistance} (vanilla formula: {@code floor(fallDistance) - 3}), so we can run the
+     * same arithmetic here every tick while descending and arm the totem when the projected
+     * impact would meet or exceed current health.
+     *
+     * <p>Deliberately conservative: no armor or Feather-Falling allowance is subtracted, so we
+     * err on the side of arming early. A false positive costs nothing - the click sequence parks
+     * the previous offhand item in the totem's old slot, so nothing is lost.</p>
+     */
+    private static boolean isLethalFall(EntityPlayerSP player) {
+        if (player.fallDistance <= 3.0F) return false;
+        if (player.motionY >= 0.0D) return false;
+        if (player.isRiding()) return false; // mounts absorb the fall damage
+        if (player.isInWater()) return false; // liquids cancel fall damage
+        if (player.isElytraFlying()) return false; // glide damage uses different math
+        float expected = MathHelper.floor(player.fallDistance) - 3.0F;
+        return expected >= player.getHealth();
     }
 }

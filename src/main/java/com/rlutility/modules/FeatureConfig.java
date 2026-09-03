@@ -74,7 +74,7 @@ public final class FeatureConfig {
     public static double iafExecuteDamage = 100.0D;
     public static int iafExecuteInterval = 20;
     public static double iafExecuteRange = 50.0D;
-    /** Remote petrify with a gorgon head held. */
+    /** Remote petrify - 1.7.1 applies the stone flag with no held item needed. */
     public static boolean iafGorgonGaze = false;
     /** Release statues instead of creating them. */
     public static boolean iafGorgonUnpetrify = false;
@@ -82,13 +82,17 @@ public final class FeatureConfig {
     /** Flip every nearby siren's singing flag off. */
     public static boolean iafSirenSilencer = false;
     public static double iafSirenRadius = 48.0D;
-    /** Experimental: mount any tameable mount on the crosshair. */
-    public static boolean iafMountHijack = false;
-    public static double iafMountHijackRange = 32.0D;
+    /** Set/strip armor on any dragon on the crosshair (no ownership check server-side). */
+    public static boolean iafDragonSmith = false;
+    /** Armor grade applied by Dragon Smith: 0 none, 1 iron, 2 gold, 3 diamond. */
+    public static int iafDragonSmithArmor = 3;
+    public static double iafDragonSmithRange = 64.0D;
 
     public static boolean simpleDifficultyAutoHydrate = true;
     /** Never auto-drink from dirty sources except in a thirst emergency. */
     public static boolean simpleDifficultySafeWater = true;
+    /** Suppress EnhancedVisuals' low-thirst screen blur. */
+    public static boolean removeThirstBlur = true;
     public static boolean autoLoot = false;
     public static int autoLootDelay = 2;
     public static boolean autoLootCloseWhenDone = true;

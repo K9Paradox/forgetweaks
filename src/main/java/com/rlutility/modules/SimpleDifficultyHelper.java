@@ -32,6 +32,15 @@ import net.minecraftforge.fml.common.gameevent.TickEvent;
  * Thirsty debuff and parasite chance. For carried drinks (juice, purified bottles, canteens) the
  * normal item-use packet is enough: the server runs the full drink like a held right-click.
  *
+ * <h3>The two gates that used to make block drinking silently fail</h3>
+ * SimpleDifficulty's server-side {@code traceWaterToDrink} refuses the packet unless (1) the
+ * player's <em>main hand is empty</em> and (2) the synced server config allows that source:
+ * {@code thirstDrinkBlocks} for normal/purified blocks, {@code thirstDrinkRain} for rain. The old
+ * handler sent the packet with whatever was in hand and ignored the block-drink boolean, so on a
+ * typical RLCraft server every drink attempt was dropped without feedback. The handler now parks
+ * the held item in an empty slot (or simply selects an empty hotbar slot) before sending,
+ * restores the previous selection afterwards, and checks both config booleans first.
+ *
  * <h3>The trace, mirrored exactly</h3>
  * The first version of this handler gated on {@code Entity#rayTrace}, which only hits blocks with
  * collision boxes - fluids have none, so it never saw water and auto-drink silently did nothing.
@@ -49,6 +58,8 @@ public class SimpleDifficultyHelper {
     private int drinkCooldown = 0;
     /** While > 0 the server is consuming an item drink we started; do not interfere. */
     private int itemUseTicks = 0;
+    /** Hotbar slot to re-select once the item drink in progress finishes; -1 = none. */
+    private int pendingSlotRestore = -1;
 
     /** Below this thirst level dirty sources become acceptable rather than dying of thirst. */
     private static final int EMERGENCY_THIRST = 4;
@@ -74,6 +85,15 @@ public class SimpleDifficultyHelper {
             itemUseTicks--;
             return; // let the drink in the server's active hand finish
         }
+        // The item drink we held the selection for is done - give the player their slot back.
+        if (pendingSlotRestore >= 0) {
+            int slot = pendingSlotRestore;
+            pendingSlotRestore = -1;
+            if (player.inventory.currentItem != slot && mc.getConnection() != null) {
+                player.inventory.currentItem = slot;
+                mc.getConnection().sendPacket(new CPacketHeldItemChange(slot));
+            }
+        }
         if (drinkCooldown > 0) {
             drinkCooldown--;
             return;
@@ -96,8 +116,9 @@ public class SimpleDifficultyHelper {
             if (waterKind == 1 && FeatureConfig.simpleDifficultySafeWater && !emergency) {
                 return; // dirty water: 75% Thirsty + parasite roll, applied server-side
             }
-            if (PacketHandler.instance != null) {
-                PacketHandler.instance.sendToServer(new MessageDrinkWater());
+            // The server drops the packet outright when its own config disallows the source.
+            if (!sourceAllowedByServerConfig(waterKind)) return;
+            if (tryBlockDrink(mc, player)) {
                 drinkCooldown = 15;
             }
         } catch (Throwable ignored) {
@@ -110,6 +131,10 @@ public class SimpleDifficultyHelper {
      * Finds a drink item and uses it like a held right-click: select or swap it in, then send the
      * item-use packet. The server completes the drink after the item's use duration without any
      * further packets, exactly as if the player had held the button.
+     *
+     * <p>The selection has to stay on the drink for the whole use duration - the server cancels
+     * an active item use when the held slot changes - so if we switched slots we schedule the
+     * restore for when {@link #itemUseTicks} runs out, not immediately.</p>
      */
     private boolean tryDrinkItem(Minecraft mc, EntityPlayerSP player, boolean emergency) {
         if (mc.playerController == null || mc.getConnection() == null) return false;
@@ -118,12 +143,15 @@ public class SimpleDifficultyHelper {
         if (slot < 0) return false;
 
         try {
+            int previousSlot = player.inventory.currentItem;
             if (slot <= 8) {
                 // Hotbar: switch the selected slot server-side.
                 player.inventory.currentItem = slot;
                 mc.getConnection().sendPacket(new CPacketHeldItemChange(slot));
+                if (slot != previousSlot) pendingSlotRestore = previousSlot;
             } else {
                 // Main inventory: swap the drink into the selected hotbar slot with real clicks.
+                // The selection itself never moves, so nothing to restore afterwards.
                 int hotbarSlot = 36 + player.inventory.currentItem;
                 mc.playerController.windowClick(0, slot, 0, ClickType.PICKUP, player);
                 mc.playerController.windowClick(0, hotbarSlot, 0, ClickType.PICKUP, player);
@@ -135,6 +163,81 @@ public class SimpleDifficultyHelper {
             return true;
         } catch (Throwable ignored) {
             return false;
+        }
+    }
+
+    /**
+     * Drinks from a source block via {@link MessageDrinkWater}. The server's
+     * {@code traceWaterToDrink} requires the <em>main hand to be empty</em>, so before sending we
+     * either select an empty hotbar slot or park the held item in an empty inventory slot with
+     * real clicks; afterwards the selection (and the parked item) are restored. All packets ride
+     * the one ordered connection, so the server sees: free hand -> drink -> hand restored.
+     * Returns false only when there is no way to free the hand (nothing empty anywhere).
+     */
+    private boolean tryBlockDrink(Minecraft mc, EntityPlayerSP player) {
+        if (mc.getConnection() == null || mc.playerController == null) return false;
+        if (PacketHandler.instance == null) return false;
+
+        try {
+            int previousSlot = player.inventory.currentItem;
+            boolean switchedSlot = false;
+            int parkedIn = -1;
+
+            if (!player.getHeldItemMainhand().isEmpty()) {
+                int emptyHotbar = -1;
+                for (int i = 0; i < 9; i++) {
+                    if (player.inventory.getStackInSlot(i).isEmpty()) {
+                        emptyHotbar = i;
+                        break;
+                    }
+                }
+                if (emptyHotbar >= 0 && emptyHotbar != previousSlot) {
+                    player.inventory.currentItem = emptyHotbar;
+                    mc.getConnection().sendPacket(new CPacketHeldItemChange(emptyHotbar));
+                    switchedSlot = true;
+                } else if (emptyHotbar < 0) {
+                    // No empty hotbar slot: park the held item in an empty inventory slot.
+                    for (int i = 9; i <= 35; i++) {
+                        if (player.inventory.getStackInSlot(i).isEmpty()) {
+                            parkedIn = i;
+                            break;
+                        }
+                    }
+                    if (parkedIn < 0) return false; // nowhere to park it - cannot free the hand
+                    mc.playerController.windowClick(0, 36 + previousSlot, 0, ClickType.PICKUP, player);
+                    mc.playerController.windowClick(0, parkedIn, 0, ClickType.PICKUP, player);
+                }
+            }
+
+            PacketHandler.instance.sendToServer(new MessageDrinkWater());
+
+            // Restore in reverse order: parked item first, then the selection.
+            if (parkedIn >= 0) {
+                mc.playerController.windowClick(0, parkedIn, 0, ClickType.PICKUP, player);
+                mc.playerController.windowClick(0, 36 + previousSlot, 0, ClickType.PICKUP, player);
+            }
+            if (switchedSlot) {
+                player.inventory.currentItem = previousSlot;
+                mc.getConnection().sendPacket(new CPacketHeldItemChange(previousSlot));
+            }
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    /**
+     * The synced SimpleDifficulty server config decides which sources its drink handler accepts.
+     * Sending a packet for a disabled source is a silent no-op server-side, so check first.
+     */
+    private static boolean sourceAllowedByServerConfig(int waterKind) {
+        try {
+            if (waterKind == 3) {
+                return ServerConfig.instance.getBoolean(ServerOptions.THIRST_DRINK_RAIN);
+            }
+            return ServerConfig.instance.getBoolean(ServerOptions.THIRST_DRINK_BLOCKS);
+        } catch (Throwable ignored) {
+            return true; // config unreadable - try anyway rather than never drinking
         }
     }
 

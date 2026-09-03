@@ -86,12 +86,13 @@ buttons — is nested directly underneath it. Values are click-stepped or typed 
   ~100 blocks out (`MessagePlayerHitMultipart` is never validated server-side).
 - **IaF Execute** `MOD` — `MessageMultipartInteract` lets the client name both the target and the
   damage number the server applies. Aim and delete. Damage / interval / range settings.
-- **IaF Gorgon Gaze** `MOD` — with a gorgon head in hand, petrify (or free, with **Unpetrify
-  Mode**) whatever you aim at, any distance. The server checks the item, never the range.
+- **IaF Gorgon Gaze** `MOD` — petrify (or free, with **Unpetrify Mode**) whatever you aim at.
+  The 1.7.1 server sets the stone flag on the named entity with no distance check and no held
+  item required.
 - **IaF Siren Silencer** `MOD` — flips every siren's singing flag off server-side in radius.
   Silent sirens charm nobody; re-asserted every 2 seconds.
-- **IaF Mount Hijack** `MOD` — *experimental*: rides any tameable mount you aim at with no
-  ownership check; final success still depends on the mob's own `canBeRidden`.
+- **IaF Dragon Smith** `MOD` — sets/strip armor on any dragon you aim at (`MessageDragonArmor`):
+  no ownership check and no armor item consumed. Grade setting: 0 strip … 3 diamond.
 - One-shot actions: **Quest Sweep** (BetterQuesting), **Trinkets: Set Race**, **Desync Dupe**.
 
 ### Skills
@@ -255,7 +256,7 @@ pass the folder explicitly:
 build.bat "C:\Users\K9\AppData\Roaming\PrismLauncher\instances\RLCraft\minecraft\mods"
 ```
 
-Output: `build\libs\rlutility-1.7.0.jar` — drop it into that same mods folder.
+Output: `build\libs\rlutility-1.7.1.jar` — drop it into that same mods folder.
 
 **Requirements.** ForgeGradle 2.3 only runs on **JDK 8** (Java 9+ will fail with cryptic bytecode
 errors) and Gradle 4.x. The script handles Gradle; if you have no JDK 8 it will tell you and stop:
@@ -278,21 +279,45 @@ flag. `gradle checkRlcraftDeps` lists which ones are missing.
 
 ---
 
+## What changed in 1.7.1
+
+- **IaF modules fixed — they were built against the wrong Ice and Fire version.** RLCraft 2.9.3
+  pins Ice and Fire **1.7.1** (CurseForge file 2693547), not 1.8.4. Two fatal mismatches:
+  `MessageStartRidingMob` does not exist in 1.7.1 (its lookup aborted all packet resolution) and
+  `MessagePlayerHitMultipart` has no `extraData` field in 1.7.1. Resolution is now per-message
+  and the fields match 1.7.1 exactly. Mount Hijack is replaced by **IaF Dragon Smith**
+  (`MessageDragonArmor`: armor any dragon remotely, no ownership check, no item consumed).
+  Gorgon Gaze no longer requires a gorgon head — the 1.7.1 handler has no held-item check at all.
+- **Dragon ESP outline fixed** — the outline pass now runs the renderer's `preRenderCallback`,
+  which is where dragons apply their size scale; before, outlines drew at base hatchling size.
+- **Auto Totem covers one-shot falls** — while airborne, the vanilla fall-damage formula is
+  compared against current health and the totem is armed *before* impact when the landing would
+  be lethal.
+- **Auto-heal works with every healing item** — detection now runs First Aid's own registry
+  lookup (`FirstAidRegistry.getPartHealer`), the exact check the server performs, instead of a
+  bandage/plaster whitelist. Also switches back to your previously selected hotbar slot after use.
+- **Auto Hydrate fixed (again)** — SimpleDifficulty's drink handler requires an *empty main
+  hand* and honors the server's `thirstDrinkBlocks`/`thirstDrinkRain` config; the module now
+  parks the held item (or selects an empty slot) before sending, gates on both config booleans,
+  and restores the previous slot afterwards.
+- **No Thirst Blur** — new SURVIVAL toggle: zeroes EnhancedVisuals' thirst-blur shader intensity
+  at runtime so the low-thirst screen blur fades out (visual-only, safe everywhere).
+
 ## What changed in 1.7.0
 
 Five new **Ice and Fire packet modules** under Exploits, born out of the Recurrent Complex admin
 exploit research. The pattern is identical — the server trusts a client packet it never validates —
-and Ice and Fire 1.8.4 (the exact build RLCraft 2.9.3 ships) has several:
+and Ice and Fire (RLCraft's build — see the 1.7.1 notes for the version correction) has several:
 
 - **IaF Longshot** — the server performs a real weapon attack (`attackTargetEntityWithCurrentItem`)
   on whatever entity the client names, up to ~100 blocks away. Full damage, enchantments and sweep.
 - **IaF Execute** — `MessageMultipartInteract` reads the damage number *from the packet* and applies
   it to the named target. Arbitrary damage on anything you can put the crosshair on.
-- **IaF Gorgon Gaze** — hold a gorgon head and petrify (or release) whatever you aim at, at any
-  distance; the handler checks the held item and nothing else.
+- **IaF Gorgon Gaze** — petrify (or release) whatever you aim at, at any distance.
 - **IaF Siren Silencer** — turns off every siren's singing in radius server-side, so nothing gets
   charmed. Pairs with Siren Guard's earplugs.
-- **IaF Mount Hijack** — experimental; mounts any tameable mount you aim at with no ownership check.
+- **IaF Mount Hijack** — superseded in 1.7.1 by Dragon Smith (the riding packet does not exist
+  in the Ice and Fire build RLCraft ships).
 
 All of these ride Ice and Fire's own `iceandfire` network channel (resolved reflectively, no
 compile-time dependency), so every effect is applied by the server and works in multiplayer.

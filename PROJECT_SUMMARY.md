@@ -1,7 +1,7 @@
 # RLUtility — Project State Summary
 
 ## 1. Overview
-- **Mod id / name**: `rlutility` / RLUtility — version **1.7.0**
+- **Mod id / name**: `rlutility` / RLUtility — version **1.7.1**
 - **Target**: Minecraft 1.12.2, Forge 14.23.5.x, Java 8, RLCraft **2.9.3**
 - **Scope**: client-side only (`clientSideOnly = true`, `acceptableRemoteVersions = "*"`), designed so
   that as much as possible is *server-authoritative* and therefore usable in multiplayer.
@@ -69,32 +69,62 @@ supplied and gates the XP charge, so `false` is a free respec.
 Hard constraints: the read loop is exactly `registry.size()` pairs, and every name must exist in the
 registry or `PlayerExtension.saveNBTData` NPEs on the next save.
 
+## 6b. Notable changes in 1.7.1 — playtest fixes
+
+- **IaF modules were inert because they targeted the wrong Ice and Fire version.** RLCraft 2.9.3
+  pins **Ice and Fire 1.7.1** (CF file 2693547) — not 1.8.4. Verified against the real 1.7.1
+  source: `MessageStartRidingMob` does not exist there (its lookup aborted ALL packet
+  resolution), and `MessagePlayerHitMultipart` has no `extraData` field. Fix: permissive
+  per-class resolution in `IceAndFireHelper`, correct 1.7.1 field sets, Mount Hijack replaced by
+  **IaF Dragon Smith** (`MessageDragonArmor`: set/strip any dragon's armor slots server-side —
+  no ownership check, no item consumed). Gorgon Gaze no longer needs a gorgon head (the 1.7.1
+  handler has no held-item check).
+- **Dragon ESP outline size** — `ModelOutlineHandler` now invokes the renderer's
+  `preRenderCallback` (cached reflection, bridge-method safe) between the Y-flip and the lift,
+  reproducing `prepareScale` exactly; that hook is where dragons apply `getRenderSize()/3`.
+- **Auto Totem vs insta-kill falls** — `FastTriageHandler.isLethalFall`: while descending with
+  `fallDistance > 3`, compares `floor(fallDistance) - 3` against current health and arms the
+  totem before impact.
+- **Auto-heal coverage + slot restore** — `FirstAidHelper.isHealingItem` now runs First Aid's
+  own server-side check (`FirstAidRegistry.getImpl().getPartHealer(stack) != null`, with an
+  `instanceof ItemHealing` fallback) instead of a bandage/plaster whitelist, and
+  `applyHealingItemToPart` restores the previously selected hotbar slot after use.
+- **Auto Hydrate, third attempt** — SD's `traceWaterToDrink` requires an EMPTY main hand and
+  honors `thirstDrinkBlocks` / `thirstDrinkRain`. `tryBlockDrink` now frees the hand (empty
+  hotbar slot, or park the item in an empty inventory slot), checks both config booleans, and
+  restores selection + parked item after the drink packet. Item drinks also restore the slot
+  once the server-side use duration elapses.
+- **ThirstBlurSuppressor** (new) — EnhancedVisuals' `SimpleDifficultyAddon` thirst handler is
+  what blurs the screen at low thirst (not SimpleDifficulty itself); the suppressor zeroes its
+  `maxIntensity` and collapses its `thirstLevel` span reflectively, with periodic re-assert.
+
 ## 6. Notable changes in 1.7.0 — Ice and Fire packet attack surface
 
 Research into the Recurrent Complex admin exploit (patched in ReC 1.4.8.7, CF file 8562927)
-showed the bug class is "server trusts a client packet", and Ice and Fire **1.8.4 — the exact
-build RLCraft 2.9.3 ships** — has several of the same. Audited against the `1.8.4-1.12.2`
-source branch. All five new modules send real packets on Ice and Fire's own `iceandfire`
-channel (LLibrary `@NetworkWrapper`, channel = mod id); `IceAndFireHelper` resolves the mod's
-live `SimpleNetworkWrapper` and constructs its real message classes reflectively, so
-`sendToServer` routes by class and no wire format is hand-rolled. Everything is
-server-authoritative (`Compat.MODDED`), no Ice and Fire classes are referenced at compile time.
+showed the bug class is "server trusts a client packet", and Ice and Fire (as shipped by
+RLCraft — the 1.7.0 notes originally said 1.8.4; corrected in 1.7.1 to the actually pinned
+**1.7.1**) has several of the same. All five modules send real packets on Ice and Fire's own
+`iceandfire` channel (LLibrary `@NetworkWrapper`, channel = mod id); `IceAndFireHelper`
+resolves the mod's live `SimpleNetworkWrapper` and constructs its real message classes
+reflectively, so `sendToServer` routes by class and no wire format is hand-rolled. Everything
+is server-authoritative (`Compat.MODDED`), no Ice and Fire classes are referenced at compile
+time.
 
-| Module | Packet (disc) | What the unvalidated handler does |
+| Module | Packet | What the unvalidated handler does (Ice and Fire 1.7.1) |
 |---|---|---|
-| IaF Longshot | `MessagePlayerHitMultipart` (13) | Server runs `attackTargetEntityWithCurrentItem` on the client-named entity within 100 blocks → real ranged melee hit (damage, enchants, sweep). We swing locally too so cooldown meters stay in step. |
-| IaF Execute | `MessageMultipartInteract` (10) | Server applies `attackEntityFrom(causeMobDamage(player), dmg)` with `dmg` read straight from the packet → arbitrary damage at up to 100 blocks. |
-| IaF Gorgon Gaze | `MessageStoneStatue` (3) | Server toggles petrification on any entity by id; the ONLY check is a gorgon head in the main hand — no distance limit. Unpetrify sub-mode included. |
-| IaF Siren Silencer | `MessageSirenSong` (8) | Flips any siren's singing flag off, no range limit → sirens in radius stop charming everyone. Re-asserted every 2 s. |
-| IaF Mount Hijack | `MessageStartRidingMob` (19) | `player.startRiding` on any `ISyncMount + EntityTameable` by id, no ownership check. Outcome still depends on the mob's own `canBeRidden` — labelled experimental. |
+| IaF Longshot | `MessagePlayerHitMultipart` | Server runs `attackTargetEntityWithCurrentItem` on the client-named entity — no range or ownership check → real ranged melee hit (damage, enchants, sweep). We swing locally too so cooldown meters stay in step. |
+| IaF Execute | `MessageMultipartInteract` | Server applies `attackEntityFrom(causeMobDamage(player), dmg)` with `dmg` read straight from the packet → arbitrary damage, no range check. |
+| IaF Gorgon Gaze | `MessageStoneStatue` | Server sets `StoneEntityProperties.isStone` on any `EntityLiving` by id — no distance check and (in 1.7.1) no held-item check. Players extend `EntityLivingBase`, so they cannot be petrified. Unpetrify sub-mode included. |
+| IaF Siren Silencer | `MessageSirenSong` | Flips any siren's singing flag off, no range limit → sirens in radius stop charming everyone. Re-asserted every 2 s. |
+| IaF Dragon Smith | `MessageDragonArmor` | Server calls `setArmorInSlot(index, type)` on any `EntityDragonBase` by id — no ownership check, no item consumed. Grade 0 strips armor, 3 = diamond. (Replaced 1.7.0's Mount Hijack: `MessageStartRidingMob` does not exist in 1.7.1.) |
 
 Supporting pieces: `IceAndFireHelper` also contains the 1.12 entity crosshair ray-cast
 (`entityOnCrosshair`: look-vector ray vs border-grown entity AABBs with block occlusion, since
 vanilla `objectMouseOver` only reaches ~4.5 blocks) and `nearbyByClassName` for the siren scan.
 
-Other 1.8.4 messages audited and rejected: `MessageDragonControl` is owner-checked; pixie
+Other messages audited and rejected: `MessageDragonControl` is owner-checked; pixie
 house/jar/podium handlers are empty server-side; `MessageGetMyrmexHive` (client-writable hive
-data) and hippogryph armor toggling are noted in `PACKET_AUDIT_FINDINGS.md` for a later round.
+data) is noted in `PACKET_AUDIT_FINDINGS.md` for a later round.
 
 ## 6a. Notable changes in 1.6.0
 - **Auto Bandage fixed**: the client cannot see the server's `part.activeHealer`, so the old

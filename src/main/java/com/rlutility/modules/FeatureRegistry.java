@@ -265,6 +265,12 @@ public final class FeatureRegistry {
                 + "choosing safe sources is the only real protection.",
                 Category.SURVIVAL, Compat.MODDED, "Auto Hydrate",
                 () -> FeatureConfig.simpleDifficultySafeWater, v -> FeatureConfig.simpleDifficultySafeWater = v);
+        f("No Thirst Blur", "Removes the blurry-vision effect EnhancedVisuals applies when thirst runs "
+                + "low. The blur is purely a client shader from EnhancedVisuals' SimpleDifficulty "
+                + "addon - this zeroes its intensity at runtime so it fades out. Visual-only, safe "
+                + "on any server.",
+                Category.SURVIVAL, Compat.MODDED,
+                () -> FeatureConfig.removeThirstBlur, v -> FeatureConfig.removeThirstBlur = v);
         f("Auto Respawn", "Instantly sends the respawn packet on the death screen.",
                 Category.SURVIVAL, Compat.SERVER,
                 () -> FeatureConfig.autoRespawn, v -> FeatureConfig.autoRespawn = v);
@@ -321,9 +327,9 @@ public final class FeatureRegistry {
                 () -> FeatureConfig.fastMineMode == 0 ? "Fast" : "Instant",
                 d -> FeatureConfig.fastMineMode = ((FeatureConfig.fastMineMode + d) % 2 + 2) % 2);
 
-        // Ice and Fire 1.8.4 ships several unvalidated client-to-server packets (the same bug
-        // class as the Recurrent Complex admin exploit). These modules ride the mod's own
-        // "iceandfire" channel - all effects happen server-side.
+        // Ice and Fire 1.7.1 (the build RLCraft 2.9.3 pins) ships several unvalidated
+        // client-to-server packets (the same bug class as the Recurrent Complex admin exploit).
+        // These modules ride the mod's own "iceandfire" channel - all effects happen server-side.
         f("IaF Longshot", "Ice and Fire: the server performs a real weapon attack on whatever you "
                 + "aim at, up to ~100 blocks away (MessagePlayerHitMultipart is never validated). "
                 + "Full damage, enchantments and sweep included.",
@@ -351,9 +357,9 @@ public final class FeatureRegistry {
                 () -> FeatureConfig.iafExecuteRange, v -> FeatureConfig.iafExecuteRange = v,
                 1, 8, 96, 4, 96, false);
 
-        f("IaF Gorgon Gaze", "Ice and Fire: with a gorgon head in hand, MessageStoneStatue "
-                + "petrifies (or frees) whatever you aim at - the server checks the item but NOT "
-                + "the distance. Hold to keep re-asserting.",
+        f("IaF Gorgon Gaze", "Ice and Fire: MessageStoneStatue petrifies (or frees) whatever you "
+                + "aim at - the 1.7.1 server checks no distance and no held item, it just sets "
+                + "the stone flag on the named entity. Works empty-handed. Hold aim to re-assert.",
                 Category.EXPLOITS, Compat.MODDED,
                 () -> FeatureConfig.iafGorgonGaze, v -> FeatureConfig.iafGorgonGaze = v);
         sub("Unpetrify Mode", "Send the release flag instead: turn stone statues back into mobs.",
@@ -374,14 +380,19 @@ public final class FeatureRegistry {
                 () -> FeatureConfig.iafSirenRadius, v -> FeatureConfig.iafSirenRadius = v,
                 8, 16, 128, 8, 256, false);
 
-        f("IaF Mount Hijack", "EXPERIMENTAL. Ice and Fire: MessageStartRidingMob mounts any "
-                + "tameable mount you aim at with no ownership check. Success still depends on "
-                + "each mob's own canBeRidden rules.",
+        f("IaF Dragon Smith", "Ice and Fire: MessageDragonArmor sets any dragon's armor slots "
+                + "server-side with no ownership check - and no armor item is consumed. Aim at "
+                + "any dragon to plate it (even someone else's tamed one), or set grade to 0 to "
+                + "strip a dragon's armor bare.",
                 Category.EXPLOITS, Compat.MODDED,
-                () -> FeatureConfig.iafMountHijack, v -> FeatureConfig.iafMountHijack = v);
+                () -> FeatureConfig.iafDragonSmith, v -> FeatureConfig.iafDragonSmith = v);
+        num("Grade", "Armor grade applied: 0 = none (strip), 1 = iron, 2 = gold, 3 = diamond.",
+                Category.EXPLOITS, "IaF Dragon Smith", "",
+                () -> FeatureConfig.iafDragonSmithArmor, v -> FeatureConfig.iafDragonSmithArmor = (int) v,
+                1, 0, 3, 0, 3, true);
         num("Range", "Crosshair trace range for this module only.",
-                Category.EXPLOITS, "IaF Mount Hijack", "m",
-                () -> FeatureConfig.iafMountHijackRange, v -> FeatureConfig.iafMountHijackRange = v,
+                Category.EXPLOITS, "IaF Dragon Smith", "m",
+                () -> FeatureConfig.iafDragonSmithRange, v -> FeatureConfig.iafDragonSmithRange = v,
                 8, 8, 96, 4, 96, false);
 
         // ================================================================ SKILLS
