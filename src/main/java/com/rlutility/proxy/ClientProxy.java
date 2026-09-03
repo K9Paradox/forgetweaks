@@ -21,6 +21,7 @@ import com.rlutility.modules.FastMineHelper;
 import com.rlutility.modules.FastTriageHandler;
 import com.rlutility.modules.FeatureConfig;
 import com.rlutility.modules.FirstAidHelper;
+import com.rlutility.modules.IceAndFireExploitHandler;
 import com.rlutility.modules.ItemMagnetHandler;
 import com.rlutility.modules.JesusHandler;
 import com.rlutility.modules.ClickAuraHandler;
@@ -82,6 +83,7 @@ public class ClientProxy extends CommonProxy {
         MinecraftForge.EVENT_BUS.register(new ClickAuraHandler());
         MinecraftForge.EVENT_BUS.register(new ReachHandler());
         MinecraftForge.EVENT_BUS.register(new SirenGuardHandler());
+        MinecraftForge.EVENT_BUS.register(new IceAndFireExploitHandler());
 
         // ---- server-authoritative inventory automation ----------------------
         MinecraftForge.EVENT_BUS.register(new FastTriageHandler());

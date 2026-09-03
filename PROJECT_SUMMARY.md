@@ -1,7 +1,7 @@
 # RLUtility — Project State Summary
 
 ## 1. Overview
-- **Mod id / name**: `rlutility` / RLUtility — version **1.6.0**
+- **Mod id / name**: `rlutility` / RLUtility — version **1.7.0**
 - **Target**: Minecraft 1.12.2, Forge 14.23.5.x, Java 8, RLCraft **2.9.3**
 - **Scope**: client-side only (`clientSideOnly = true`, `acceptableRemoteVersions = "*"`), designed so
   that as much as possible is *server-authoritative* and therefore usable in multiplayer.
@@ -69,7 +69,34 @@ supplied and gates the XP charge, so `false` is a free respec.
 Hard constraints: the read loop is exactly `registry.size()` pairs, and every name must exist in the
 registry or `PlayerExtension.saveNBTData` NPEs on the next save.
 
-## 6. Notable changes in 1.6.0
+## 6. Notable changes in 1.7.0 — Ice and Fire packet attack surface
+
+Research into the Recurrent Complex admin exploit (patched in ReC 1.4.8.7, CF file 8562927)
+showed the bug class is "server trusts a client packet", and Ice and Fire **1.8.4 — the exact
+build RLCraft 2.9.3 ships** — has several of the same. Audited against the `1.8.4-1.12.2`
+source branch. All five new modules send real packets on Ice and Fire's own `iceandfire`
+channel (LLibrary `@NetworkWrapper`, channel = mod id); `IceAndFireHelper` resolves the mod's
+live `SimpleNetworkWrapper` and constructs its real message classes reflectively, so
+`sendToServer` routes by class and no wire format is hand-rolled. Everything is
+server-authoritative (`Compat.MODDED`), no Ice and Fire classes are referenced at compile time.
+
+| Module | Packet (disc) | What the unvalidated handler does |
+|---|---|---|
+| IaF Longshot | `MessagePlayerHitMultipart` (13) | Server runs `attackTargetEntityWithCurrentItem` on the client-named entity within 100 blocks → real ranged melee hit (damage, enchants, sweep). We swing locally too so cooldown meters stay in step. |
+| IaF Execute | `MessageMultipartInteract` (10) | Server applies `attackEntityFrom(causeMobDamage(player), dmg)` with `dmg` read straight from the packet → arbitrary damage at up to 100 blocks. |
+| IaF Gorgon Gaze | `MessageStoneStatue` (3) | Server toggles petrification on any entity by id; the ONLY check is a gorgon head in the main hand — no distance limit. Unpetrify sub-mode included. |
+| IaF Siren Silencer | `MessageSirenSong` (8) | Flips any siren's singing flag off, no range limit → sirens in radius stop charming everyone. Re-asserted every 2 s. |
+| IaF Mount Hijack | `MessageStartRidingMob` (19) | `player.startRiding` on any `ISyncMount + EntityTameable` by id, no ownership check. Outcome still depends on the mob's own `canBeRidden` — labelled experimental. |
+
+Supporting pieces: `IceAndFireHelper` also contains the 1.12 entity crosshair ray-cast
+(`entityOnCrosshair`: look-vector ray vs border-grown entity AABBs with block occlusion, since
+vanilla `objectMouseOver` only reaches ~4.5 blocks) and `nearbyByClassName` for the siren scan.
+
+Other 1.8.4 messages audited and rejected: `MessageDragonControl` is owner-checked; pixie
+house/jar/podium handlers are empty server-side; `MessageGetMyrmexHive` (client-writable hive
+data) and hippogryph armor toggling are noted in `PACKET_AUDIT_FINDINGS.md` for a later round.
+
+## 6a. Notable changes in 1.6.0
 - **Auto Bandage fixed**: the client cannot see the server's `part.activeHealer`, so the old
   "is this part already treated" check always passed and a fresh `MessageApplyHealingItem` went
   out every cycle — each one *replacing* the server-side healer and resetting its heal timer to

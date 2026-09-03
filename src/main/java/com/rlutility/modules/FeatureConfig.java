@@ -64,6 +64,28 @@ public final class FeatureConfig {
     public static boolean fastMine = true;
     /** 0 = Fast (no break delay), 1 = Instant (block progress completes every tick). */
     public static int fastMineMode = 0;
+
+    // ------------------------------------------------- Ice and Fire packets
+    /** Real weapon attack on the crosshair target at long range. */
+    public static boolean iafLongshot = false;
+    public static double iafLongshotRange = 50.0D;
+    /** Arbitrary-damage packet on the crosshair target. */
+    public static boolean iafExecute = false;
+    public static double iafExecuteDamage = 100.0D;
+    public static int iafExecuteInterval = 20;
+    public static double iafExecuteRange = 50.0D;
+    /** Remote petrify with a gorgon head held. */
+    public static boolean iafGorgonGaze = false;
+    /** Release statues instead of creating them. */
+    public static boolean iafGorgonUnpetrify = false;
+    public static double iafGorgonRange = 64.0D;
+    /** Flip every nearby siren's singing flag off. */
+    public static boolean iafSirenSilencer = false;
+    public static double iafSirenRadius = 48.0D;
+    /** Experimental: mount any tameable mount on the crosshair. */
+    public static boolean iafMountHijack = false;
+    public static double iafMountHijackRange = 32.0D;
+
     public static boolean simpleDifficultyAutoHydrate = true;
     /** Never auto-drink from dirty sources except in a thirst emergency. */
     public static boolean simpleDifficultySafeWater = true;

@@ -321,6 +321,69 @@ public final class FeatureRegistry {
                 () -> FeatureConfig.fastMineMode == 0 ? "Fast" : "Instant",
                 d -> FeatureConfig.fastMineMode = ((FeatureConfig.fastMineMode + d) % 2 + 2) % 2);
 
+        // Ice and Fire 1.8.4 ships several unvalidated client-to-server packets (the same bug
+        // class as the Recurrent Complex admin exploit). These modules ride the mod's own
+        // "iceandfire" channel - all effects happen server-side.
+        f("IaF Longshot", "Ice and Fire: the server performs a real weapon attack on whatever you "
+                + "aim at, up to ~100 blocks away (MessagePlayerHitMultipart is never validated). "
+                + "Full damage, enchantments and sweep included.",
+                Category.EXPLOITS, Compat.MODDED,
+                () -> FeatureConfig.iafLongshot, v -> FeatureConfig.iafLongshot = v);
+        num("Range", "How far the crosshair trace reaches. The server accepts up to 100 blocks.",
+                Category.EXPLOITS, "IaF Longshot", "m",
+                () -> FeatureConfig.iafLongshotRange, v -> FeatureConfig.iafLongshotRange = v,
+                1, 8, 96, 4, 96, false);
+
+        f("IaF Execute", "Ice and Fire: MessageMultipartInteract lets the client name a target AND "
+                + "the damage number the server applies. Aim at anything and delete it.",
+                Category.EXPLOITS, Compat.MODDED,
+                () -> FeatureConfig.iafExecute, v -> FeatureConfig.iafExecute = v);
+        num("Damage", "Damage applied per packet.",
+                Category.EXPLOITS, "IaF Execute", " HP",
+                () -> FeatureConfig.iafExecuteDamage, v -> FeatureConfig.iafExecuteDamage = v,
+                10, 1, 1000, 0.5, 1000000, false);
+        num("Interval", "Ticks between damage packets.",
+                Category.EXPLOITS, "IaF Execute", "t",
+                () -> FeatureConfig.iafExecuteInterval, v -> FeatureConfig.iafExecuteInterval = (int) v,
+                5, 1, 100, 1, 1200, true);
+        num("Range", "How far the crosshair trace reaches.",
+                Category.EXPLOITS, "IaF Execute", "m",
+                () -> FeatureConfig.iafExecuteRange, v -> FeatureConfig.iafExecuteRange = v,
+                1, 8, 96, 4, 96, false);
+
+        f("IaF Gorgon Gaze", "Ice and Fire: with a gorgon head in hand, MessageStoneStatue "
+                + "petrifies (or frees) whatever you aim at - the server checks the item but NOT "
+                + "the distance. Hold to keep re-asserting.",
+                Category.EXPLOITS, Compat.MODDED,
+                () -> FeatureConfig.iafGorgonGaze, v -> FeatureConfig.iafGorgonGaze = v);
+        sub("Unpetrify Mode", "Send the release flag instead: turn stone statues back into mobs.",
+                Category.EXPLOITS, Compat.MODDED, "IaF Gorgon Gaze",
+                () -> FeatureConfig.iafGorgonUnpetrify, v -> FeatureConfig.iafGorgonUnpetrify = v);
+        num("Range", "Crosshair trace range for this module only.",
+                Category.EXPLOITS, "IaF Gorgon Gaze", "m",
+                () -> FeatureConfig.iafGorgonRange, v -> FeatureConfig.iafGorgonRange = v,
+                8, 8, 256, 4, 512, false);
+
+        f("IaF Siren Silencer", "Ice and Fire: flips every siren's singing flag off server-side "
+                + "(MessageSirenSong, unvalidated). Silent sirens charm nobody - the offensive "
+                + "complement to Siren Guard's earplugs.",
+                Category.EXPLOITS, Compat.MODDED,
+                () -> FeatureConfig.iafSirenSilencer, v -> FeatureConfig.iafSirenSilencer = v);
+        num("Radius", "Sirens inside this radius are silenced every 2 seconds.",
+                Category.EXPLOITS, "IaF Siren Silencer", "m",
+                () -> FeatureConfig.iafSirenRadius, v -> FeatureConfig.iafSirenRadius = v,
+                8, 16, 128, 8, 256, false);
+
+        f("IaF Mount Hijack", "EXPERIMENTAL. Ice and Fire: MessageStartRidingMob mounts any "
+                + "tameable mount you aim at with no ownership check. Success still depends on "
+                + "each mob's own canBeRidden rules.",
+                Category.EXPLOITS, Compat.MODDED,
+                () -> FeatureConfig.iafMountHijack, v -> FeatureConfig.iafMountHijack = v);
+        num("Range", "Crosshair trace range for this module only.",
+                Category.EXPLOITS, "IaF Mount Hijack", "m",
+                () -> FeatureConfig.iafMountHijackRange, v -> FeatureConfig.iafMountHijackRange = v,
+                8, 8, 96, 4, 96, false);
+
         // ================================================================ SKILLS
         f("Client Lock Bypass", "REQUIRED for locked tools. Reskillable runs on your client too and "
                 + "cancels mining/interaction locally, so the packet never even reaches the server. "

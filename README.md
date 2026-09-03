@@ -82,6 +82,16 @@ buttons — is nested directly underneath it. Values are click-stepped or typed 
 - **Auto Loot** `SRV` — empties open containers with real shift-clicks; optional auto-close, delay setting.
 - **Fast Mine** `SRV` — two modes: **Fast** (zero break delay, NoTreePunching penalty undone) and
   **Instant** (block progress completes every tick; vanilla servers trust the finish packet).
+- **IaF Longshot** `MOD` — Ice and Fire runs a real weapon attack on whatever you aim at, up to
+  ~100 blocks out (`MessagePlayerHitMultipart` is never validated server-side).
+- **IaF Execute** `MOD` — `MessageMultipartInteract` lets the client name both the target and the
+  damage number the server applies. Aim and delete. Damage / interval / range settings.
+- **IaF Gorgon Gaze** `MOD` — with a gorgon head in hand, petrify (or free, with **Unpetrify
+  Mode**) whatever you aim at, any distance. The server checks the item, never the range.
+- **IaF Siren Silencer** `MOD` — flips every siren's singing flag off server-side in radius.
+  Silent sirens charm nobody; re-asserted every 2 seconds.
+- **IaF Mount Hijack** `MOD` — *experimental*: rides any tameable mount you aim at with no
+  ownership check; final success still depends on the mob's own `canBeRidden`.
 - One-shot actions: **Quest Sweep** (BetterQuesting), **Trinkets: Set Race**, **Desync Dupe**.
 
 ### Skills
@@ -245,7 +255,7 @@ pass the folder explicitly:
 build.bat "C:\Users\K9\AppData\Roaming\PrismLauncher\instances\RLCraft\minecraft\mods"
 ```
 
-Output: `build\libs\rlutility-1.6.0.jar` — drop it into that same mods folder.
+Output: `build\libs\rlutility-1.7.0.jar` — drop it into that same mods folder.
 
 **Requirements.** ForgeGradle 2.3 only runs on **JDK 8** (Java 9+ will fail with cryptic bytecode
 errors) and Gradle 4.x. The script handles Gradle; if you have no JDK 8 it will tell you and stop:
@@ -267,6 +277,27 @@ Reskillable, Locks, First Aid and others). You can also drop them in `./libs` in
 flag. `gradle checkRlcraftDeps` lists which ones are missing.
 
 ---
+
+## What changed in 1.7.0
+
+Five new **Ice and Fire packet modules** under Exploits, born out of the Recurrent Complex admin
+exploit research. The pattern is identical — the server trusts a client packet it never validates —
+and Ice and Fire 1.8.4 (the exact build RLCraft 2.9.3 ships) has several:
+
+- **IaF Longshot** — the server performs a real weapon attack (`attackTargetEntityWithCurrentItem`)
+  on whatever entity the client names, up to ~100 blocks away. Full damage, enchantments and sweep.
+- **IaF Execute** — `MessageMultipartInteract` reads the damage number *from the packet* and applies
+  it to the named target. Arbitrary damage on anything you can put the crosshair on.
+- **IaF Gorgon Gaze** — hold a gorgon head and petrify (or release) whatever you aim at, at any
+  distance; the handler checks the held item and nothing else.
+- **IaF Siren Silencer** — turns off every siren's singing in radius server-side, so nothing gets
+  charmed. Pairs with Siren Guard's earplugs.
+- **IaF Mount Hijack** — experimental; mounts any tameable mount you aim at with no ownership check.
+
+All of these ride Ice and Fire's own `iceandfire` network channel (resolved reflectively, no
+compile-time dependency), so every effect is applied by the server and works in multiplayer.
+`IceAndFireHelper` adds a proper 1.12 crosshair entity ray-cast, since vanilla's mouse-over only
+reaches normal interact range.
 
 ## What changed in 1.6.0
 
