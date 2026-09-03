@@ -101,7 +101,9 @@ public class SimpleDifficultyHelper {
 
         try {
             IThirstCapability thirst = SDCapabilities.getThirstData(player);
-            if (thirst == null || thirst.getThirstLevel() >= 14) return;
+            // Do not consume a random drink just because thirst is slightly below full. The old
+            // 14/20 gate made Auto Hydrate look random and wasted bottles/canteens while exploring.
+            if (thirst == null || thirst.getThirstLevel() > FeatureConfig.simpleDifficultyHydrateAt) return;
             boolean emergency = thirst.getThirstLevel() <= EMERGENCY_THIRST;
 
             // 1. Carried drinks first - juice and purified bottles carry no contamination roll.
@@ -247,21 +249,32 @@ public class SimpleDifficultyHelper {
      */
     private static int findDrinkSlot(EntityPlayerSP player, boolean emergency) {
         boolean safeOnly = FeatureConfig.simpleDifficultySafeWater && !emergency;
+        int bestSlot = -1;
+        int bestThirst = -1;
+        boolean bestSafe = false;
         for (int i = 0; i < 36; i++) {
             int containerSlot = i < 9 ? 36 + i : i;
             ItemStack stack = player.inventoryContainer.getSlot(containerSlot).getStack();
             if (stack.isEmpty() || !(stack.getItem() instanceof ItemDrinkBase)) continue;
             ItemDrinkBase drink = (ItemDrinkBase) stack.getItem();
             try {
-                // Covers empty canteens too - they report thirst level 0.
-                if (drink.getThirstLevel(stack) <= 0) continue;
-                if (safeOnly && drink.getDirtyChance(stack) > 0.0F) continue;
+                // Covers empty canteens too - they report thirst level 0. Select by a stable score,
+                // rather than whichever inventory entry happened to be encountered first.
+                int thirstGain = drink.getThirstLevel(stack);
+                if (thirstGain <= 0) continue;
+                boolean safe = drink.getDirtyChance(stack) <= 0.0F;
+                if (safeOnly && !safe) continue;
+                if (bestSlot < 0 || (safe && !bestSafe)
+                        || (safe == bestSafe && thirstGain > bestThirst)) {
+                    bestSlot = i;
+                    bestThirst = thirstGain;
+                    bestSafe = safe;
+                }
             } catch (Throwable ignored) {
-                continue;
+                // A foreign drink implementation is not a reason to stop scanning the inventory.
             }
-            return i;
         }
-        return -1;
+        return bestSlot;
     }
 
     // ------------------------------------------------------------- water trace

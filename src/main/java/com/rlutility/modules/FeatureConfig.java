@@ -89,6 +89,8 @@ public final class FeatureConfig {
     public static double iafDragonSmithRange = 64.0D;
 
     public static boolean simpleDifficultyAutoHydrate = true;
+    /** Begin automatic drinking only when thirst is genuinely low (0-20 scale). */
+    public static int simpleDifficultyHydrateAt = 6;
     /** Never auto-drink from dirty sources except in a thirst emergency. */
     public static boolean simpleDifficultySafeWater = true;
     /** Suppress EnhancedVisuals' low-thirst screen blur. */

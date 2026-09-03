@@ -257,10 +257,16 @@ public final class FeatureRegistry {
                 Category.SURVIVAL, "Auto Eat",
                 () -> FeatureConfig.autoEatThreshold + "/20",
                 d -> FeatureConfig.autoEatThreshold = (int) clamp(FeatureConfig.autoEatThreshold + d, 1, 19));
-        f("Auto Hydrate", "Drinks through SimpleDifficulty's channel before you ever go thirsty.",
+        f("Auto Hydrate", "Drinks through SimpleDifficulty only when thirst is low; it never clicks or "
+                + "chooses a drink while you are comfortably hydrated.",
                 Category.SURVIVAL, Compat.MODDED,
                 () -> FeatureConfig.simpleDifficultyAutoHydrate, v -> FeatureConfig.simpleDifficultyAutoHydrate = v);
-        sub("Safe Water Only", "Only drink from purified water unless thirst is critical. Dirty water "
+        num("Drink At", "Start drinking at or below this thirst level (0-20).",
+                Category.SURVIVAL, "Auto Hydrate", " /20",
+                () -> FeatureConfig.simpleDifficultyHydrateAt,
+                v -> FeatureConfig.simpleDifficultyHydrateAt = (int) v,
+                1, 2, 14, 1, 20, true);
+        sub("Safe Water Only",  "Only drink from purified water unless thirst is critical. Dirty water "
                 + "has a 75% Thirsty chance plus a parasite roll - the server applies both, so "
                 + "choosing safe sources is the only real protection.",
                 Category.SURVIVAL, Compat.MODDED, "Auto Hydrate",
