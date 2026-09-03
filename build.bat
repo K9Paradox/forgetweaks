@@ -7,6 +7,9 @@ rem  what a modern machine has on PATH. This script finds a JDK 8, downloads a
 rem  private copy of Gradle 4.10.3 if needed, locates your RLCraft mods folder
 rem  and then builds. Nothing is installed system wide.
 rem
+rem  The full build output is saved to build-last.log next to this file, so if
+rem  something fails you can open/paste that instead of scrolling.
+rem
 rem  Usage:
 rem    build.bat
 rem    build.bat "C:\path\to\RLCraft\minecraft\mods"
@@ -17,6 +20,7 @@ cd /d "%~dp0"
 set "GRADLE_VER=4.10.3"
 set "CACHE=%USERPROFILE%\.rlutility-build"
 set "GRADLE_HOME=%CACHE%\gradle-%GRADLE_VER%"
+set "BUILDLOG=%CD%\build-last.log"
 
 echo.
 echo === RLUtility build ===
@@ -74,6 +78,7 @@ if not defined JDK8 (
     echo   winget install EclipseAdoptium.Temurin.8.JDK
     echo or download from https://adoptium.net/temurin/releases/?version=8
     echo.
+    pause
     exit /b 1
 )
 
@@ -91,6 +96,8 @@ if not exist "%GRADLE_HOME%\bin\gradle.bat" (
         "Remove-Item '%CACHE%\gradle.zip'"
     if not exist "%GRADLE_HOME%\bin\gradle.bat" (
         echo [ERROR] Gradle download failed. Check your internet connection.
+        echo.
+        pause
         exit /b 1
     )
 ) else (
@@ -132,18 +139,33 @@ if not exist "%MODS%\Level Up- 2-1.1.23-1.12.jar" (
 
 rem -------------------------------------------------------------------- build
 echo [4/4] Building ^(first run decompiles Minecraft, expect 5-15 minutes^)...
+echo       Output is echoed here and saved to build-last.log
 echo.
 
-call "%GRADLE_HOME%\bin\gradle.bat" build -x test --no-daemon -PrlcraftMods="%MODS%"
-if errorlevel 1 (
+rem Gradle output goes to the log file, then the log is printed to the screen.
+rem That keeps a copy of everything even when the window would otherwise scroll away.
+call "%GRADLE_HOME%\bin\gradle.bat" build -x test --no-daemon -PrlcraftMods="%MODS%" > "%BUILDLOG%" 2>&1
+set "GRADLE_RC=%ERRORLEVEL%"
+type "%BUILDLOG%"
+echo.
+
+if not "%GRADLE_RC%"=="0" (
+    echo =========================================================================
+    echo  [ERROR] Build failed ^(exit code %GRADLE_RC%^).
+    echo  The complete output above is saved in:
+    echo      %BUILDLOG%
+    echo  Paste the section containing "error:" into the chat.
+    echo =========================================================================
     echo.
-    echo [ERROR] Build failed. See the Gradle output above.
+    pause
     exit /b 1
 )
 
+echo =========================================================================
+echo  Done. Jar(s) built:
+for %%F in ("%CD%\build\libs\rlutility-*.jar") do echo      %%~fF
+echo  Copy the jar into your RLCraft mods folder.
+echo =========================================================================
 echo.
-echo === Done ===
-for %%F in ("%CD%\build\libs\rlutility-1.4.0.jar") do echo Jar: %%~fF
-echo Copy that jar into your RLCraft mods folder.
-echo.
+pause
 endlocal
