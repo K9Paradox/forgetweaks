@@ -1,7 +1,7 @@
 # RLUtility — Project State Summary
 
 ## 1. Overview
-- **Mod id / name**: `rlutility` / RLUtility — version **1.4.0**
+- **Mod id / name**: `rlutility` / RLUtility — version **1.5.0**
 - **Target**: Minecraft 1.12.2, Forge 14.23.5.x, Java 8, RLCraft **2.9.3**
 - **Scope**: client-side only (`clientSideOnly = true`, `acceptableRemoteVersions = "*"`), designed so
   that as much as possible is *server-authoritative* and therefore usable in multiplayer.
@@ -27,7 +27,9 @@ com.rlutility
 
 **Adding a module** is three steps:
 1. add a `public static boolean` (and any numeric settings) to `FeatureConfig` — persistence is automatic;
-2. add one `f(...)` line (and optional `s(...)` setting) in `FeatureRegistry` with its `Compat` tag;
+2. add one `f(...)` line in `FeatureRegistry` with its `Compat` tag. Options owned by the module use
+   `sub(..., parent, ...)` / `s(..., group, ...)` / `num(..., group, ...)` and the menu nests them
+   under the module automatically (declaration order preserved via `FeatureRegistry.optionsOf`);
 3. register the handler in `ClientProxy.init()`.
 
 ## 3. Compatibility taxonomy
@@ -65,7 +67,23 @@ supplied and gates the XP charge, so `false` is a free respec.
 Hard constraints: the read loop is exactly `registry.size()` pairs, and every name must exist in the
 registry or `PlayerExtension.saveNBTData` NPEs on the next save.
 
-## 6. Notable fixes in 1.4.0
+## 6. Notable changes in 1.5.0
+- **Menu refactor**: modules own their options. Sub-features (`Feature.parent`), settings
+  (`Setting.group`) and editor buttons nest under their module; standalone clusters (Level Up! 2,
+  one-shot exploits) get explicit section rows.
+- **Anti-Kinetic is authoritative**: RLCraft's Collision Damage mod deals its damage from a
+  client-reported acceleration packet (`PacketCollisionS`); we pin its `prevMotionCombined`
+  snapshot to the current speed every tick so the packet never goes out. Elytra impacts get a
+  smooth rate-limited brake (arrive below the vanilla loss threshold).
+- **Flight persist re-sends `CPacketPlayerAbilities`** so the server agrees flight is on — the old
+  client-only re-assertion desynced and rubber-banded (the "jittery" bug).
+- **Fast Mine modes**: Fast (delay 0 + BreakSpeed restore) and Instant (progress completed every
+  tick). Reflection fixed to `field_78781_i` / `field_78770_f` — the old `field_78779_k` does not
+  exist, so the module previously did nothing at runtime.
+- **Removed as placebo**: enchantment preview, packet weapon-lock bypasses, level damage bypass.
+  Click Aura now dispatches plain vanilla attacks.
+
+## 6b. Notable fixes in 1.4.0
 - Dedicated-server crash paths removed (`Minecraft` reference in config, client handlers registered
   from the common entry point).
 - `NoFall` no longer cancels `AutoCriticals` (shared `AutoCritHandler.critWindow`).
@@ -78,5 +96,5 @@ registry or `PlayerExtension.saveNBTData` NPEs on the next save.
 ```powershell
 $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-8.0.504.1-hotspot"
 gradle build -x test -PrlcraftMods="C:\Users\K9\AppData\Roaming\PrismLauncher\instances\RLCraft\minecraft\mods"
-Copy-Item build\libs\rlutility-1.4.0.jar "$env:APPDATA\PrismLauncher\instances\RLCraft\minecraft\mods\" -Force
+Copy-Item build\libs\rlutility-1.5.0.jar "$env:APPDATA\PrismLauncher\instances\RLCraft\minecraft\mods\" -Force
 ```

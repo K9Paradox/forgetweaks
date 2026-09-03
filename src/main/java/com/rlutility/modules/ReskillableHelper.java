@@ -280,9 +280,7 @@ public class ReskillableHelper {
         out.add("  mod loaded: " + (MOD_LOADED ? "\u00a7ayes" : "\u00a7cno"));
         out.add("  client un-cancel: " + (FeatureConfig.reskillableBypass ? "\u00a7aon" : "\u00a7cOFF")
                 + " \u00a77(reverted " + ReskillableClientUnlock.getUnCancelCount() + " cancels)");
-        out.add("  packet bypass: " + (FeatureConfig.weaponPacketBypass ? "\u00a7aon" : "\u00a7cOFF")
-                + " \u00a77(" + WeaponLockBypassHandler.getAttackCount() + " attacks, last sent: "
-                + WeaponLockBypassHandler.getLastResult() + ")");
+        out.add("  \u00a77(weapon locks are server-enforced; there is no packet bypass. Buy the levels.)");
 
         if (!MOD_LOADED) return out;
 

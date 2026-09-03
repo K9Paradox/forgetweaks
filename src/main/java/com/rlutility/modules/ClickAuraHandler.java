@@ -30,10 +30,13 @@ import java.util.List;
  * in a full sphere - no facing requirement, hence "360" - sorts them nearest-first, and dispatches a
  * real attack at each up to a configurable cap.</p>
  *
- * <p>Attacks go through {@link WeaponLockBypassHandler#attackOnce}, so whichever dispatch method is
- * configured (RLCombat hook, raw packets, or vanilla) is reused rather than duplicated. Every hit is
- * a genuine server-side attack packet - the server still applies its own reach and damage rules, so
- * an absurd range simply gets ignored rather than silently doing nothing.</p>
+ * <p>Every hit is dispatched through the vanilla {@code playerController.attackEntity} path, i.e.
+ * a genuine server-side attack packet - the server still applies its own reach and damage rules,
+ * so an absurd range simply gets ignored rather than silently doing nothing.</p>
+ *
+ * <p>Note on locked weapons: Reskillable's weapon lock is enforced by the server on the attack
+ * event, and every client-side packet path tested against it was rejected, so this deliberately
+ * does not pretend to bypass it. Locked weapons need their levels bought (see the Skills tab).</p>
  */
 public class ClickAuraHandler {
 
@@ -70,7 +73,9 @@ public class ClickAuraHandler {
         int hit = 0;
         for (EntityLivingBase target : targets) {
             if (hit >= Math.max(1, FeatureConfig.clickAuraMaxTargets)) break;
-            WeaponLockBypassHandler.attackOnce(mc.player, target, "click-aura");
+            if (mc.playerController != null) {
+                mc.playerController.attackEntity(mc.player, target);
+            }
             hit++;
         }
 

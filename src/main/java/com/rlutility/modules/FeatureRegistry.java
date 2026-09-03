@@ -10,6 +10,12 @@ import java.util.function.Supplier;
 /**
  * Single source of truth for everything the GUI and the HUD display. Adding a module is one line
  * here plus the field in {@link FeatureConfig}.
+ *
+ * <h3>Layout convention</h3>
+ * Every toggle is a module. Options that refine a module are declared with that module's name as
+ * their {@code parent} (for boolean sub-features) or {@code group} (for value settings), and the
+ * menu nests them directly underneath the module. Nothing floats around without an owner, which
+ * is what used to make the tabs read as one wall of similarly named rows.
  */
 public final class FeatureRegistry {
 
@@ -18,11 +24,14 @@ public final class FeatureRegistry {
     private static final List<Feature> FEATURES = new ArrayList<>();
     private static final List<Setting> SETTINGS = new ArrayList<>();
 
-    /** A numeric / cyclable option shown underneath the toggle list of a category. */
+    /** A numeric / cyclable option. {@code group} names the module it belongs to, or null. */
     public static class Setting {
         public final String name;
         public final String desc;
         public final Category category;
+        public final String group;
+        /** Declaration order within the registry; the menu uses it to interleave options naturally. */
+        public int order;
         private final Supplier<String> valueSupplier;
         private final java.util.function.IntConsumer adjuster;
         /** Present only on numeric settings; enables typing a value directly. */
@@ -32,11 +41,12 @@ public final class FeatureRegistry {
         private double hardMin = -Double.MAX_VALUE;
         private double hardMax = Double.MAX_VALUE;
 
-        public Setting(String name, String desc, Category category,
+        public Setting(String name, String desc, Category category, String group,
                        Supplier<String> value, java.util.function.IntConsumer adjust) {
             this.name = name;
             this.desc = desc;
             this.category = category;
+            this.group = group;
             this.valueSupplier = value;
             this.adjuster = adjust;
         }
@@ -74,14 +84,29 @@ public final class FeatureRegistry {
         }
     }
 
+    /** Global declaration counter so features and settings can be interleaved in one order. */
+    private static int orderSeq = 0;
+
     private static void f(String name, String desc, Category c, Compat compat,
                           Supplier<Boolean> get, java.util.function.Consumer<Boolean> set) {
-        FEATURES.add(new Feature(name, desc, c, compat, get, set));
+        Feature feature = new Feature(name, desc, c, compat, get, set);
+        feature.order = orderSeq++;
+        FEATURES.add(feature);
     }
 
-    private static void s(String name, String desc, Category c,
+    /** Sub-feature: a boolean option owned by another module, drawn nested under it. */
+    private static void sub(String name, String desc, Category c, Compat compat, String parent,
+                            Supplier<Boolean> get, java.util.function.Consumer<Boolean> set) {
+        Feature feature = new Feature(name, desc, c, compat, parent, get, set);
+        feature.order = orderSeq++;
+        FEATURES.add(feature);
+    }
+
+    private static void s(String name, String desc, Category c, String group,
                           Supplier<String> value, java.util.function.IntConsumer adjust) {
-        SETTINGS.add(new Setting(name, desc, c, value, adjust));
+        Setting setting = new Setting(name, desc, c, group, value, adjust);
+        setting.order = orderSeq++;
+        SETTINGS.add(setting);
     }
 
     /**
@@ -92,12 +117,12 @@ public final class FeatureRegistry {
      * old settings clamped everything to the click range, so an ESP range could never exceed 192
      * however you asked for it.</p>
      */
-    private static void num(String name, String desc, Category c, String unit,
+    private static void num(String name, String desc, Category c, String group, String unit,
                             java.util.function.DoubleSupplier get,
                             java.util.function.DoubleConsumer set,
                             double step, double softMin, double softMax,
                             double hardMin, double hardMax, boolean integral) {
-        Setting setting = new Setting(name, desc, c,
+        Setting setting = new Setting(name, desc, c, group,
                 () -> integral
                         ? ((long) get.getAsDouble()) + unit
                         : String.format("%.2f", get.getAsDouble()) + unit,
@@ -114,54 +139,82 @@ public final class FeatureRegistry {
         setting.integral = integral;
         setting.hardMin = hardMin;
         setting.hardMax = hardMax;
+        setting.order = orderSeq++;
         SETTINGS.add(setting);
     }
 
     static {
-        // ------------------------------------------------------------- COMBAT
+        // ================================================================ COMBAT
         f("Auto Criticals", "Packet micro-hop before every swing so the server registers a 1.5x crit.",
                 Category.COMBAT, Compat.SERVER,
                 () -> FeatureConfig.autoCriticals, v -> FeatureConfig.autoCriticals = v);
-        f("Level Damage Bypass", "Fires the reach/attack packets of RLCombat, Spartan and I&F directly.",
-                Category.COMBAT, Compat.MODDED,
-                () -> FeatureConfig.levelDamageBypass, v -> FeatureConfig.levelDamageBypass = v);
-        f("Anti Knockback", "Cancels the knockback the server pushes onto you - movement is client-driven.",
+
+        f("Click Aura", "One swing hits every valid target around you - no hitbox lining up. "
+                + "Input-driven: nothing happens unless you actually click.",
+                Category.COMBAT, Compat.SERVER,
+                () -> FeatureConfig.clickAura, v -> FeatureConfig.clickAura = v);
+        num("Range", "Sphere radius around you. The server still enforces its own reach.",
+                Category.COMBAT, "Click Aura", "m",
+                () -> FeatureConfig.clickAuraRange, v -> FeatureConfig.clickAuraRange = v,
+                0.5, 1, 12, 0.5, 256, false);
+        num("Max Targets", "Cap on how many entities one swing hits.",
+                Category.COMBAT, "Click Aura", "",
+                () -> FeatureConfig.clickAuraMaxTargets, v -> FeatureConfig.clickAuraMaxTargets = (int) v,
+                1, 1, 32, 1, 1024, true);
+        sub("Respect Cooldown", "Only fire on a charged swing, matching vanilla attack speed.",
+                Category.COMBAT, Compat.LOCAL, "Click Aura",
+                () -> FeatureConfig.clickAuraRespectCooldown, v -> FeatureConfig.clickAuraRespectCooldown = v);
+        sub("Hit Players", "Include other players.",
+                Category.COMBAT, Compat.LOCAL, "Click Aura",
+                () -> FeatureConfig.clickAuraHitPlayers, v -> FeatureConfig.clickAuraHitPlayers = v);
+        sub("Hit Passive Mobs", "Include passive mobs.",
+                Category.COMBAT, Compat.LOCAL, "Click Aura",
+                () -> FeatureConfig.clickAuraHitPassive, v -> FeatureConfig.clickAuraHitPassive = v);
+        sub("Hit Tamed Mobs", "Include your own tamed animals.",
+                Category.COMBAT, Compat.LOCAL, "Click Aura",
+                () -> FeatureConfig.clickAuraHitTamed, v -> FeatureConfig.clickAuraHitTamed = v);
+
+        f("Anti-Knockback", "Cancels the knockback the server pushes onto you - movement is client-driven.",
                 Category.COMBAT, Compat.SERVER,
                 () -> FeatureConfig.antiKnockback, v -> FeatureConfig.antiKnockback = v);
-        f("Auto Totem", "Hot-swaps a Totem of Undying into your off-hand via real container clicks.",
-                Category.COMBAT, Compat.SERVER,
-                () -> FeatureConfig.fastTriage, v -> FeatureConfig.fastTriage = v);
-        f("FirstAid Auto-Triage", "Applies bandages/plasters to wounded limbs through FirstAid's own channel.",
-                Category.COMBAT, Compat.MODDED,
-                () -> FeatureConfig.firstAidAutoHeal, v -> FeatureConfig.firstAidAutoHeal = v);
-        f("Auto Armor", "Equips the strongest armour in your inventory with real inventory clicks.",
-                Category.SURVIVAL, Compat.SERVER,
-                () -> FeatureConfig.autoArmor, v -> FeatureConfig.autoArmor = v);
-        f("Auto Eat", "Eats real food (never rotten/poisonous) when hunger drops, then restores your slot.",
-                Category.SURVIVAL, Compat.SERVER,
-                () -> FeatureConfig.autoEat, v -> FeatureConfig.autoEat = v);
-        f("Auto Respawn", "Instantly sends the respawn packet on the death screen.",
-                Category.SURVIVAL, Compat.SERVER,
-                () -> FeatureConfig.autoRespawn, v -> FeatureConfig.autoRespawn = v);
+        num("Horizontal Factor", "Fraction of horizontal knockback kept (0.00 = immune).",
+                Category.COMBAT, "Anti-Knockback", "",
+                () -> FeatureConfig.antiKnockbackHorizontal, v -> FeatureConfig.antiKnockbackHorizontal = v,
+                0.05, 0, 1, 0, 1, false);
+        num("Vertical Factor", "Fraction of vertical knockback kept (0.00 = immune).",
+                Category.COMBAT, "Anti-Knockback", "",
+                () -> FeatureConfig.antiKnockbackVertical, v -> FeatureConfig.antiKnockbackVertical = v,
+                0.05, 0, 1, 0, 1, false);
 
-        s("Auto Eat At", "Hunger level that triggers Auto Eat.", Category.COMBAT,
-                () -> FeatureConfig.autoEatThreshold + "/20",
-                d -> FeatureConfig.autoEatThreshold = (int) clamp(FeatureConfig.autoEatThreshold + d, 1, 19));
-        s("KB Horizontal", "Fraction of horizontal knockback kept (0.0 = immune).", Category.COMBAT,
-                () -> String.format("%.2f", FeatureConfig.antiKnockbackHorizontal),
-                d -> FeatureConfig.antiKnockbackHorizontal = clamp(FeatureConfig.antiKnockbackHorizontal + 0.05D * d, 0.0D, 1.0D));
-        s("KB Vertical", "Fraction of vertical knockback kept (0.0 = immune).", Category.COMBAT,
-                () -> String.format("%.2f", FeatureConfig.antiKnockbackVertical),
-                d -> FeatureConfig.antiKnockbackVertical = clamp(FeatureConfig.antiKnockbackVertical + 0.05D * d, 0.0D, 1.0D));
+        // ============================================================== MOVEMENT
+        f("Flight", "Creative-style flying. The server must allow flight for this to hold - on a "
+                + "strict server you will rubber-band back to the ground.",
+                Category.MOVEMENT, Compat.RISKY,
+                () -> FeatureConfig.creativeFly, v -> FeatureConfig.creativeFly = v);
+        num("Fly Speed", "Flight speed, re-applied every tick because server resyncs reset it.",
+                Category.MOVEMENT, "Flight", "",
+                () -> FeatureConfig.flySpeed, v -> FeatureConfig.flySpeed = v,
+                0.01, 0.01, 1, 0.01, 10, false);
+        sub("Persist Through Damage", "Re-assert flight after the ability resync that damage triggers, "
+                + "and re-tell the server. Without this you drop out of the sky whenever something hits you.",
+                Category.MOVEMENT, Compat.LOCAL, "Flight",
+                () -> FeatureConfig.flyPersistThroughDamage, v -> FeatureConfig.flyPersistThroughDamage = v);
 
-        // ----------------------------------------------------------- MOVEMENT
         f("No Fall", "Spoofs the on-ground flag while falling so the server never applies fall damage.",
                 Category.MOVEMENT, Compat.SERVER,
                 () -> FeatureConfig.noFall, v -> FeatureConfig.noFall = v);
+
+        f("Anti-Kinetic", "Stops wall-impact damage. RLCraft's Collision Damage mod asks the client "
+                + "how hard it hit and trusts the answer - this reports nothing, and brakes elytra "
+                + "flights before impact so vanilla can't compute a loss either. Same trick the "
+                + "Stone of Inertia Null uses, minus needing the drop.",
+                Category.MOVEMENT, Compat.SERVER,
+                () -> FeatureConfig.noFallKinetic, v -> FeatureConfig.noFallKinetic = v);
+
         f("Step Assist", "Walk up full blocks. Sent as normal movement, so servers accept it.",
                 Category.MOVEMENT, Compat.SERVER,
                 () -> FeatureConfig.stepSpeed, v -> FeatureConfig.stepSpeed = v);
-        f("Water Walk", "Jesus-walk across water and lava surfaces.",
+        f("Water Walk", "Walk across water and lava surfaces.",
                 Category.MOVEMENT, Compat.SERVER,
                 () -> FeatureConfig.waterWalk, v -> FeatureConfig.waterWalk = v);
         f("No Slowdown", "Full movement speed while eating, blocking or drawing a bow.",
@@ -170,26 +223,56 @@ public final class FeatureRegistry {
         f("Timer", "Speeds up your client tick loop - faster movement, mining and attacks.",
                 Category.MOVEMENT, Compat.RISKY,
                 () -> FeatureConfig.timerEnabled, v -> FeatureConfig.timerEnabled = v);
-        f("Creative Flight", "Forces the flight capability. Vanilla servers kick for this.",
-                Category.MOVEMENT, Compat.RISKY,
-                () -> FeatureConfig.creativeFly, v -> FeatureConfig.creativeFly = v);
-        f("Fly: Survive Damage", "Re-assert flight after the ability resync that damage triggers. "
-                + "Without this you drop out of the sky whenever something hits you.",
-                Category.MOVEMENT, Compat.LOCAL,
-                () -> FeatureConfig.flyPersistThroughDamage, v -> FeatureConfig.flyPersistThroughDamage = v);
-        num("Fly Speed", "Flight speed, re-applied every tick because the resync resets it.", Category.MOVEMENT, "",
-                () -> FeatureConfig.flySpeed, v -> FeatureConfig.flySpeed = v,
-                0.01, 0.01, 1, 0.01, 10, false);
-        f("Anti-Kinetic", "Bleed off elytra speed before a wall. Kinetic damage is computed on the "
-                + "server from the speed you lose, so this is mitigation, not immunity.",
-                Category.MOVEMENT, Compat.SERVER,
-                () -> FeatureConfig.noFallKinetic, v -> FeatureConfig.noFallKinetic = v);
-
-        num("Timer Speed", "Tick multiplier. 1.0 is vanilla; above ~2.0 gets you flagged fast.", Category.MOVEMENT, "x",
+        num("Timer Speed", "Tick multiplier. 1.0 is vanilla; above ~2.0 gets you flagged fast.",
+                Category.MOVEMENT, "Timer", "x",
                 () -> FeatureConfig.timerSpeed, v -> FeatureConfig.timerSpeed = v,
                 0.1, 0.1, 5, 0.1, 50, false);
 
-        // ----------------------------------------------------------- EXPLOITS
+        // ============================================================== SURVIVAL
+        f("Auto Armor", "Equips the strongest armour in your inventory with real inventory clicks.",
+                Category.SURVIVAL, Compat.SERVER,
+                () -> FeatureConfig.autoArmor, v -> FeatureConfig.autoArmor = v);
+        f("Auto Bandage", "Applies bandages and plasters to wounded limbs through First Aid's own channel.",
+                Category.SURVIVAL, Compat.MODDED,
+                () -> FeatureConfig.firstAidAutoHeal, v -> FeatureConfig.firstAidAutoHeal = v);
+        f("Auto Totem", "Hot-swaps a Totem of Undying into your off-hand via real container clicks.",
+                Category.SURVIVAL, Compat.SERVER,
+                () -> FeatureConfig.fastTriage, v -> FeatureConfig.fastTriage = v);
+        f("Auto Eat", "Eats real food (never rotten/poisonous) when hunger drops, then restores your slot.",
+                Category.SURVIVAL, Compat.SERVER,
+                () -> FeatureConfig.autoEat, v -> FeatureConfig.autoEat = v);
+        s("Eat At", "Hunger level that triggers Auto Eat.",
+                Category.SURVIVAL, "Auto Eat",
+                () -> FeatureConfig.autoEatThreshold + "/20",
+                d -> FeatureConfig.autoEatThreshold = (int) clamp(FeatureConfig.autoEatThreshold + d, 1, 19));
+        f("Auto Hydrate", "Drinks through SimpleDifficulty's channel before you ever go thirsty.",
+                Category.SURVIVAL, Compat.MODDED,
+                () -> FeatureConfig.simpleDifficultyAutoHydrate, v -> FeatureConfig.simpleDifficultyAutoHydrate = v);
+        f("Auto Respawn", "Instantly sends the respawn packet on the death screen.",
+                Category.SURVIVAL, Compat.SERVER,
+                () -> FeatureConfig.autoRespawn, v -> FeatureConfig.autoRespawn = v);
+
+        f("Item Magnet", "Pulls nearby drops toward you. Authoritative only when ItemPhysic is "
+                + "installed; otherwise it is a client-side convenience.",
+                Category.SURVIVAL, Compat.MODDED,
+                () -> FeatureConfig.clientItemVacuum, v -> FeatureConfig.clientItemVacuum = v);
+        num("Magnet Radius", "How far the magnet reaches.",
+                Category.SURVIVAL, "Item Magnet", "m",
+                () -> FeatureConfig.magnetRadius, v -> FeatureConfig.magnetRadius = v,
+                0.5, 1, 32, 0.5, 256, false);
+        num("Magnet Speed", "How hard items are pulled toward you.",
+                Category.SURVIVAL, "Item Magnet", "",
+                () -> FeatureConfig.magnetSpeed, v -> FeatureConfig.magnetSpeed = v,
+                0.05, 0.05, 2, 0.01, 20, false);
+        sub("Only My Drops", "Ignore items that another player dropped.",
+                Category.SURVIVAL, Compat.LOCAL, "Item Magnet",
+                () -> FeatureConfig.magnetOnlyMine, v -> FeatureConfig.magnetOnlyMine = v);
+
+        f("Debuff Neutralizer", "Strips screen-shake and nuisance debuffs from your client render.",
+                Category.SURVIVAL, Compat.LOCAL,
+                () -> FeatureConfig.clientDebuffNeutralizer, v -> FeatureConfig.clientDebuffNeutralizer = v);
+
+        // ============================================================== EXPLOITS
         f("Auto Lockpick", "Audio/entropy solver that opens Locks tumblers through the mod's own packets.",
                 Category.EXPLOITS, Compat.MODDED,
                 () -> FeatureConfig.autoLockpick, v -> FeatureConfig.autoLockpick = v);
@@ -199,99 +282,46 @@ public final class FeatureRegistry {
         f("Auto Loot", "Empties any open chest, barrel or dungeon container with real shift-click packets.",
                 Category.EXPLOITS, Compat.SERVER,
                 () -> FeatureConfig.autoLoot, v -> FeatureConfig.autoLoot = v);
-        f("Auto Loot: Close", "Automatically closes the container once it has been emptied.",
-                Category.EXPLOITS, Compat.SERVER,
+        sub("Close When Done", "Automatically closes the container once it has been emptied.",
+                Category.EXPLOITS, Compat.SERVER, "Auto Loot",
                 () -> FeatureConfig.autoLootCloseWhenDone, v -> FeatureConfig.autoLootCloseWhenDone = v);
-        f("Fast Mine", "Removes the block hit delay and undoes NoTreePunching's speed penalty.",
-                Category.EXPLOITS, Compat.SERVER,
-                () -> FeatureConfig.fastMine, v -> FeatureConfig.fastMine = v);
-        f("Auto Hydrate", "Drinks through SimpleDifficulty's channel before you ever go thirsty.",
-                Category.SURVIVAL, Compat.MODDED,
-                () -> FeatureConfig.simpleDifficultyAutoHydrate, v -> FeatureConfig.simpleDifficultyAutoHydrate = v);
-        f("Item Vacuum", "Pulls nearby drops in. Authoritative only when ItemPhysic is installed.",
-                Category.EXPLOITS, Compat.MODDED,
-                () -> FeatureConfig.clientItemVacuum, v -> FeatureConfig.clientItemVacuum = v);
-        f("Debuff Neutralizer", "Strips screen-shake and nuisance debuffs from your client render.",
-                Category.SURVIVAL, Compat.LOCAL,
-                () -> FeatureConfig.clientDebuffNeutralizer, v -> FeatureConfig.clientDebuffNeutralizer = v);
-
-        s("Loot Delay", "Ticks between each shift-click. Lower is faster but noisier.", Category.EXPLOITS,
+        s("Loot Delay", "Ticks between each shift-click. Lower is faster but noisier.",
+                Category.EXPLOITS, "Auto Loot",
                 () -> FeatureConfig.autoLootDelay + "t",
                 d -> FeatureConfig.autoLootDelay = (int) clamp(FeatureConfig.autoLootDelay + d, 0, 10));
 
-        // -------------------------------------------------------------- TOOLS
-        f("Enchant Preview", "Shows the exact enchantments all three table slots will give. Pure "
-                + "observation - the server hands the client its xpSeed, so nothing is sent.",
-                Category.VISUALS, Compat.LOCAL,
-                () -> FeatureConfig.enchantPreview, v -> FeatureConfig.enchantPreview = v);
+        f("Fast Mine", "Removes the vanilla break delay and undoes NoTreePunching's speed penalty. "
+                + "Instant mode completes block progress in one tick - vanilla servers trust the "
+                + "finish packet, anti-cheats may not.",
+                Category.EXPLOITS, Compat.SERVER,
+                () -> FeatureConfig.fastMine, v -> FeatureConfig.fastMine = v);
+        s("Mine Mode", "Fast = no delay. Instant = blocks break in about one tick.",
+                Category.EXPLOITS, "Fast Mine",
+                () -> FeatureConfig.fastMineMode == 0 ? "Fast" : "Instant",
+                d -> FeatureConfig.fastMineMode = ((FeatureConfig.fastMineMode + d) % 2 + 2) % 2);
 
-        f("Magnet: Only My Drops", "Ignore items that another player dropped.",
-                Category.TOOLS, Compat.LOCAL,
-                () -> FeatureConfig.magnetOnlyMine, v -> FeatureConfig.magnetOnlyMine = v);
-        num("Magnet Radius", "How far the item vacuum reaches.", Category.TOOLS, "m",
-                () -> FeatureConfig.magnetRadius, v -> FeatureConfig.magnetRadius = v,
-                0.5, 1, 32, 0.5, 256, false);
-        num("Magnet Speed", "How hard items are pulled toward you.", Category.TOOLS, "",
-                () -> FeatureConfig.magnetSpeed, v -> FeatureConfig.magnetSpeed = v,
-                0.05, 0.05, 2, 0.01, 20, false);
-
-        f("Client Lock Un-cancel", "REQUIRED for locked tools. Reskillable runs on your client too and "
+        // ================================================================ SKILLS
+        f("Client Lock Bypass", "REQUIRED for locked tools. Reskillable runs on your client too and "
                 + "cancels mining/interaction locally, so the packet never even reaches the server. "
                 + "This reverts that. The server still decides the outcome.",
                 Category.SKILLS, Compat.LOCAL,
                 () -> FeatureConfig.reskillableBypass, v -> FeatureConfig.reskillableBypass = v);
-
-        f("Packet Attack Bypass", "THE weapon lock fix. Attacks via RLCombat/Spartan/Ice&Fire attack "
-                + "packets instead of the vanilla path, which Reskillable's lock does not stop. Keeps "
-                + "full damage and enchantments.",
-                Category.COMBAT, Compat.SERVER,
-                () -> FeatureConfig.weaponPacketBypass, v -> FeatureConfig.weaponPacketBypass = v);
-        f("Bypass: Hold To Attack", "Keep attacking while the button is held down.",
-                Category.COMBAT, Compat.LOCAL,
-                () -> FeatureConfig.weaponBypassHeldAttack, v -> FeatureConfig.weaponBypassHeldAttack = v);
-        f("Click Aura", "One swing hits every valid target around you - no hitbox lining up. "
-                + "Input-driven: nothing happens unless you actually click.",
-                Category.COMBAT, Compat.SERVER,
-                () -> FeatureConfig.clickAura, v -> FeatureConfig.clickAura = v);
-        num("Aura Range", "Sphere radius around you. The server still enforces its own reach.", Category.COMBAT, "m",
-                () -> FeatureConfig.clickAuraRange, v -> FeatureConfig.clickAuraRange = v,
-                0.5, 1, 12, 0.5, 256, false);
-        num("Aura Max Targets", "Cap on how many entities one swing hits.", Category.COMBAT, "",
-                () -> FeatureConfig.clickAuraMaxTargets, v -> FeatureConfig.clickAuraMaxTargets = (int) v,
-                1, 1, 32, 1, 1024, true);
-        f("Aura: Respect Cooldown", "Only fire on a charged swing, matching vanilla attack speed.",
-                Category.COMBAT, Compat.LOCAL,
-                () -> FeatureConfig.clickAuraRespectCooldown, v -> FeatureConfig.clickAuraRespectCooldown = v);
-        f("Aura: Hit Players", "Include other players.", Category.COMBAT, Compat.LOCAL,
-                () -> FeatureConfig.clickAuraHitPlayers, v -> FeatureConfig.clickAuraHitPlayers = v);
-        f("Aura: Hit Passive", "Include passive mobs.", Category.COMBAT, Compat.LOCAL,
-                () -> FeatureConfig.clickAuraHitPassive, v -> FeatureConfig.clickAuraHitPassive = v);
-        f("Aura: Hit Tamed", "Include your own tamed animals.", Category.COMBAT, Compat.LOCAL,
-                () -> FeatureConfig.clickAuraHitTamed, v -> FeatureConfig.clickAuraHitTamed = v);
-
-        f("Bypass: RLCombat Hook", "Attack through RLCombatCompat.attackEntityFromClient - the call the "
-                + "working nunchaku path uses. This is the one that actually lands.",
-                Category.COMBAT, Compat.SERVER,
-                () -> FeatureConfig.bypassUseRlcombatHook, v -> FeatureConfig.bypassUseRlcombatHook = v);
-        f("Bypass: Raw Packets", "Also send the raw mod attack packets. They do not work alone; only "
-                + "useful for experimenting.",
-                Category.COMBAT, Compat.SERVER,
-                () -> FeatureConfig.bypassExtraPackets, v -> FeatureConfig.bypassExtraPackets = v);
-        f("Reskillable Auto-Buy", "Automatically spend XP levels to unlock the item you are holding.",
+        f("Auto-Buy Levels", "Automatically spend XP levels to unlock the item you are holding.",
                 Category.SKILLS, Compat.MODDED,
                 () -> FeatureConfig.reskillableAutoBuy, v -> FeatureConfig.reskillableAutoBuy = v);
-        s("XP Reserve", "Never spend below this many XP levels when auto-buying.", Category.SKILLS,
+        s("XP Reserve", "Never spend below this many XP levels when auto-buying.",
+                Category.SKILLS, "Auto-Buy Levels",
                 () -> FeatureConfig.reskillableXpReserve + " lv",
                 d -> FeatureConfig.reskillableXpReserve = (int) clamp(FeatureConfig.reskillableXpReserve + d, 0, 100));
 
-        f("LU2: Preserve Class", "Keep exactly one Level Up! class marker set. Off = all three XP bonuses at once.",
-                Category.TOOLS, Compat.MODDED,
+        f("Preserve Class", "Level Up! 2: keep exactly one class marker set. Off = all three XP bonuses at once.",
+                Category.SKILLS, Compat.MODDED,
                 () -> FeatureConfig.levelUpPreserveClass, v -> FeatureConfig.levelUpPreserveClass = v);
-        f("LU2: Clamp To Max", "Never send a skill level above its own cap. Overshooting can throw server-side.",
-                Category.TOOLS, Compat.MODDED,
+        f("Clamp Levels", "Level Up! 2: never send a skill level above its own cap. Overshooting can throw server-side.",
+                Category.SKILLS, Compat.MODDED,
                 () -> FeatureConfig.levelUpClampToMax, v -> FeatureConfig.levelUpClampToMax = v);
 
-        // ------------------------------------------------------------ VISUALS
+        // =============================================================== VISUALS
         f("Chest ESP", "Outlines chests, ender chests and shulkers through walls.",
                 Category.VISUALS, Compat.LOCAL,
                 () -> FeatureConfig.espChests, v -> FeatureConfig.espChests = v);
@@ -313,75 +343,74 @@ public final class FeatureRegistry {
         f("Item ESP", "Outlines dropped items so nothing gets lost in tall grass.",
                 Category.VISUALS, Compat.LOCAL,
                 () -> FeatureConfig.espItems, v -> FeatureConfig.espItems = v);
-        f("Tracers", "Draws lines from your crosshair to every highlighted entity.",
-                Category.VISUALS, Compat.LOCAL,
-                () -> FeatureConfig.espTracers, v -> FeatureConfig.espTracers = v);
-
-        f("Custom Entity ESP", "Highlight the entity ids on your custom list. Edit the list from the "
-                + "Tools tab; this switches it on and off without losing the entries.",
-                Category.VISUALS, Compat.LOCAL,
-                () -> FeatureConfig.espCustomEntitiesOn, v -> FeatureConfig.espCustomEntitiesOn = v);
-        f("Custom Block ESP", "Highlight the block ids on your custom list, including the dragon "
-                + "skull patterns. Edit the list from the Tools tab.",
-                Category.VISUALS, Compat.LOCAL,
-                () -> FeatureConfig.espCustomBlocksOn, v -> FeatureConfig.espCustomBlocksOn = v);
-
         f("Modded Mob ESP", "Outlines every living entity that is not from vanilla Minecraft.",
                 Category.VISUALS, Compat.LOCAL,
                 () -> FeatureConfig.espModdedMobs, v -> FeatureConfig.espModdedMobs = v);
         f("All Containers ESP", "Outlines anything with an inventory, including modded chests and barrels.",
                 Category.VISUALS, Compat.LOCAL,
                 () -> FeatureConfig.espAllContainers, v -> FeatureConfig.espAllContainers = v);
+        f("Custom Entity ESP", "Highlight the entity ids on your custom list.",
+                Category.VISUALS, Compat.LOCAL,
+                () -> FeatureConfig.espCustomEntitiesOn, v -> FeatureConfig.espCustomEntitiesOn = v);
+        f("Custom Block ESP", "Highlight the block ids on your custom list, including the dragon skull patterns.",
+                Category.VISUALS, Compat.LOCAL,
+                () -> FeatureConfig.espCustomBlocksOn, v -> FeatureConfig.espCustomBlocksOn = v);
+        f("Tracers", "Draws lines from your crosshair to every highlighted entity.",
+                Category.VISUALS, Compat.LOCAL,
+                () -> FeatureConfig.espTracers, v -> FeatureConfig.espTracers = v);
 
         f("Model Outlines", "Trace the real model in wireframe for categories set to Outline. "
                 + "Unlike the vanilla glow this is plain line rasterising, so thickness is exact "
                 + "and there is no halo.",
                 Category.VISUALS, Compat.LOCAL,
                 () -> FeatureConfig.espModelOutline, v -> FeatureConfig.espModelOutline = v);
-        num("Outline Thickness", "Model outline width in pixels.", Category.VISUALS, "px",
+        num("Outline Thickness", "Model outline width in pixels.",
+                Category.VISUALS, "Model Outlines", "px",
                 () -> FeatureConfig.espOutlineWidth, v -> FeatureConfig.espOutlineWidth = v,
                 0.5, 0.5, 10, 0.1, 64, false);
-        f("Outline Through Walls", "Draw model outlines through terrain.",
-                Category.VISUALS, Compat.LOCAL,
+        sub("Outline Through Walls", "Draw model outlines through terrain.",
+                Category.VISUALS, Compat.LOCAL, "Model Outlines",
                 () -> FeatureConfig.espOutlineThroughWalls, v -> FeatureConfig.espOutlineThroughWalls = v);
 
-        num("ESP Line Width", "Outline thickness.", Category.VISUALS, "px",
-                () -> FeatureConfig.espLineWidth, v -> FeatureConfig.espLineWidth = v,
-                0.5, 0.5, 6, 0.1, 64, false);
-        num("ESP Range", "Maximum draw distance in blocks. Lower = better FPS.", Category.VISUALS, "m",
-                () -> FeatureConfig.espRange, v -> FeatureConfig.espRange = (int) v,
-                8, 16, 256, 1, 4096, true);
-
-        // ----------------------------------------------------------------- XRay
-        f("XRay", "Highlights the blocks on your list through terrain. Edit the list in the Tools tab.",
+        f("XRay", "Highlights the blocks on your list through terrain.",
                 Category.VISUALS, Compat.LOCAL,
                 () -> FeatureConfig.xrayEnabled, v -> FeatureConfig.xrayEnabled = v);
-        f("XRay Tracers", "Draws a line from your crosshair to every XRay hit.",
-                Category.VISUALS, Compat.LOCAL,
+        sub("XRay Tracers", "Draws a line from your crosshair to every XRay hit.",
+                Category.VISUALS, Compat.LOCAL, "XRay",
                 () -> FeatureConfig.xrayTracers, v -> FeatureConfig.xrayTracers = v);
-        num("XRay Range", "Scan radius. Cost grows with the cube of this - 28 is a good balance.", Category.VISUALS, "m",
+        num("XRay Range", "Scan radius. Cost grows with the cube of this - 28 is a good balance.",
+                Category.VISUALS, "XRay", "m",
                 () -> FeatureConfig.xrayRange, v -> FeatureConfig.xrayRange = (int) v,
                 4, 8, 64, 1, 256, true);
         s("XRay Rescan", "Ticks between scans. Lower reacts faster but costs more CPU.",
-                Category.VISUALS,
+                Category.VISUALS, "XRay",
                 () -> FeatureConfig.xrayRescanTicks + "t",
                 d -> FeatureConfig.xrayRescanTicks = (int) clamp(FeatureConfig.xrayRescanTicks + 5 * d, 5, 120));
 
-        // ---------------------------------------------------------------- HUD
+        num("ESP Range", "Maximum draw distance in blocks. Lower = better FPS.",
+                Category.VISUALS, null, "m",
+                () -> FeatureConfig.espRange, v -> FeatureConfig.espRange = (int) v,
+                8, 16, 256, 1, 4096, true);
+        num("ESP Line Width", "Outline thickness for box-style ESP.",
+                Category.VISUALS, null, "px",
+                () -> FeatureConfig.espLineWidth, v -> FeatureConfig.espLineWidth = v,
+                0.5, 0.5, 6, 0.1, 64, false);
+
+        // =================================================================== HUD
         f("HUD", "Master switch for the in-game overlay.",
                 Category.HUD, Compat.LOCAL,
                 () -> FeatureConfig.hudEnabled, v -> FeatureConfig.hudEnabled = v);
-        f("Watermark", "Small RLUtility / RLCraft version tag in the corner.",
-                Category.HUD, Compat.LOCAL,
+        sub("Watermark", "Small RLUtility / RLCraft version tag in the corner.",
+                Category.HUD, Compat.LOCAL, "HUD",
                 () -> FeatureConfig.hudWatermark, v -> FeatureConfig.hudWatermark = v);
-        f("Module List", "Lists every active module down the right-hand side.",
-                Category.HUD, Compat.LOCAL,
+        sub("Module List", "Lists every active module down the right-hand side.",
+                Category.HUD, Compat.LOCAL, "HUD",
                 () -> FeatureConfig.hudModuleList, v -> FeatureConfig.hudModuleList = v);
-        f("Stats Line", "FPS, ping, coordinates and current dimension.",
-                Category.HUD, Compat.LOCAL,
+        sub("Stats Line", "FPS, ping, coordinates and current dimension.",
+                Category.HUD, Compat.LOCAL, "HUD",
                 () -> FeatureConfig.hudStats, v -> FeatureConfig.hudStats = v);
-        f("Target Info", "Health bar and distance readout for your current Kill Aura target.",
-                Category.HUD, Compat.LOCAL,
+        sub("Target Info", "Health bar and distance readout for whatever you are looking at.",
+                Category.HUD, Compat.LOCAL, "HUD",
                 () -> FeatureConfig.hudTargetInfo, v -> FeatureConfig.hudTargetInfo = v);
     }
 
@@ -399,9 +428,54 @@ public final class FeatureRegistry {
         return out;
     }
 
+    /** Top-level modules of a category, in declaration order. */
+    public static List<Feature> modulesFor(Category c) {
+        List<Feature> out = new ArrayList<>();
+        for (Feature f : FEATURES) if (f.category == c && !f.isSubFeature()) out.add(f);
+        return out;
+    }
+
+    /** Sub-features owned by the named module, in declaration order. */
+    public static List<Feature> subFeaturesOf(Category c, String moduleName) {
+        List<Feature> out = new ArrayList<>();
+        for (Feature f : FEATURES) {
+            if (f.category == c && moduleName.equals(f.parent)) out.add(f);
+        }
+        return out;
+    }
+
     public static List<Setting> settingsFor(Category c) {
         List<Setting> out = new ArrayList<>();
         for (Setting s : SETTINGS) if (s.category == c) out.add(s);
+        return out;
+    }
+
+    /** Settings owned by the named module. */
+    public static List<Setting> settingsForGroup(Category c, String moduleName) {
+        List<Setting> out = new ArrayList<>();
+        for (Setting s : SETTINGS) {
+            if (s.category == c && moduleName.equals(s.group)) out.add(s);
+        }
+        return out;
+    }
+
+    /**
+     * Everything owned by the named module - sub-features and settings interleaved in declaration
+     * order, so a module's options read exactly the way they were written.
+     */
+    public static List<Object> optionsOf(Category c, String moduleName) {
+        List<Object> out = new ArrayList<>();
+        out.addAll(subFeaturesOf(c, moduleName));
+        out.addAll(settingsForGroup(c, moduleName));
+        out.sort(java.util.Comparator.comparingInt(o ->
+                o instanceof Feature ? ((Feature) o).order : ((Setting) o).order));
+        return out;
+    }
+
+    /** Settings with no owning module - rendered at the end of the tab. */
+    public static List<Setting> standaloneSettings(Category c) {
+        List<Setting> out = new ArrayList<>();
+        for (Setting s : SETTINGS) if (s.category == c && s.group == null) out.add(s);
         return out;
     }
 
@@ -414,12 +488,12 @@ public final class FeatureRegistry {
         return out;
     }
 
-    /** Enabled modules worth showing in the HUD array list (HUD toggles themselves excluded). */
+    /** Enabled modules worth showing in the HUD array list (options and HUD toggles excluded). */
     public static List<Feature> activeForHud() {
         List<Feature> out = new ArrayList<>();
         for (Feature f : FEATURES) {
             if (f.category == Category.HUD || f.category == Category.TOOLS) continue;
-            if (f.name.startsWith("KA: ") || f.name.startsWith("Auto Loot: ")) continue;
+            if (f.isSubFeature()) continue;
             if (f.isEnabled()) out.add(f);
         }
         return out;

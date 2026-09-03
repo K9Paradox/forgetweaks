@@ -4,97 +4,133 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.network.play.client.CPacketPlayer;
 import net.minecraft.util.DamageSource;
+import net.minecraft.util.math.AxisAlignedBB;
+import net.minecraft.util.math.Vec3d;
 import net.minecraftforge.event.entity.living.LivingAttackEvent;
 import net.minecraftforge.fml.common.eventhandler.EventPriority;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
 
 /**
- * No fall.
+ * Fall and kinetic damage control.
  *
- * <p>The part that actually matters on a server is the spoofed on-ground flag: the server resets
- * its own fall distance whenever the client reports it touched down. The previous implementation
- * sent that packet on <em>every</em> tick with {@code motionY &lt; -0.3}, which is both extremely
- * loud on the wire and broke Auto Criticals and elytra flight. It now only fires once the fall has
- * grown past the damage threshold, and it stays out of the way during a crit hop.</p>
+ * <h3>Fall damage</h3>
+ * The part that actually matters on a server is the spoofed on-ground flag: the server resets its
+ * own fall distance whenever the client reports it touched down. This only fires once the fall has
+ * grown past the damage threshold, and stays out of the way during a crit hop.
+ *
+ * <h3>Kinetic ("ran into a wall") damage - why this one is a real fix</h3>
+ * RLCraft ships the <em>Collision Damage</em> mod. Its entire damage pipeline is:
+ *
+ * <pre>
+ * // client, PlayerTickEvent END:
+ * double accel = prevMotionCombined - curMotionCombined;
+ * if (accel > 5 && player.collidedHorizontally)
+ *     PacketHandler.INSTANCE.sendToServer(new PacketCollisionS(accel));
+ *
+ * // server, on that packet:
+ * player.attackEntityFrom(flyIntoWall-or-fall, (accel - threshold) * 4 * multiplier);
+ * </pre>
+ *
+ * The server never measures anything itself - it trusts the acceleration the client reports. So
+ * the honest, authoritative fix is to never report one: we keep the {@code prevMotionCombined}
+ * snapshot pinned to the current speed every tick, the mod always computes an acceleration of 0,
+ * and the packet is never sent. That is exactly the immunity the Stone of Inertia Null grants,
+ * just without needing the drop.
+ *
+ * <p>Vanilla elytra flight has a separate, truly server-computed impact damage based on how much
+ * horizontal speed is lost inside a tick. That one cannot be cancelled from the client, so for it
+ * we brake smoothly ahead of walls and arrive at impact below its loss threshold.</p>
  */
 public class NoFallHandler {
 
+    /** Impact speed under which vanilla elytra kinetic damage cannot trigger. */
+    private static final double SAFE_IMPACT_SPEED = 0.25D;
+
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public void onPlayerTick(TickEvent.PlayerTickEvent event) {
-        if (!FeatureConfig.noFall || event.phase != TickEvent.Phase.START) return;
+        if (event.phase != TickEvent.Phase.START) return;
 
         Minecraft mc = Minecraft.getMinecraft();
         EntityPlayerSP player = mc.player;
         if (player == null || player.connection == null || event.player != player) return;
+
+        if (FeatureConfig.noFallKinetic && player.isElytraFlying()) {
+            brakeBeforeImpact(player);
+        }
+
+        if (!FeatureConfig.noFall) return;
         if (player.capabilities.isCreativeMode || player.isSpectator()) return;
         if (AutoCritHandler.critWindow > 0) return; // let the crit hop keep its fall distance
-        if (player.isElytraFlying()) {
-            dampBeforeImpact(player);
-            return;
-        }
+        if (player.isElytraFlying()) return;
 
         // Only lie about being grounded once the drop would actually hurt.
         if (!player.onGround && player.motionY < 0.0D && player.fallDistance > 2.0F) {
             player.connection.sendPacket(new CPacketPlayer(true));
             player.fallDistance = 0.0F;
         }
-
-        // Kill the momentum snapshot CollisionDamage-style mods use for wall-impact damage.
-        if (player.collidedHorizontally || player.collidedVertically) {
-            player.getEntityData().setDouble("prevMotionCombined", 0.0D);
-        }
     }
 
     /**
-     * Kinetic ("flew into a wall") damage cannot be cancelled from the client.
-     *
-     * <p>It is applied inside {@code EntityLivingBase#travel} on the server:</p>
-     *
-     * <pre>
-     * if (this.collidedHorizontally &amp;&amp; !this.world.isRemote) {
-     *     double d13 = &lt;horizontal speed before&gt; - &lt;horizontal speed after&gt;;
-     *     double d14 = d13 * 10.0D - 3.0D;
-     *     if (d14 &gt; 0.0D) this.attackEntityFrom(DamageSource.FLY_INTO_WALL, (float) d14);
-     * }
-     * </pre>
-     *
-     * The damage is derived purely from how much horizontal speed the server saw you lose, and the
-     * server derives that speed from the position packets we send. There is no flag to spoof - the
-     * only lever is the motion itself. So rather than pretend, this bleeds off speed while a wall is
-     * still ahead, keeping the delta under the {@code d13 * 10 - 3} threshold when the impact lands.
-     *
-     * <p>That makes it mitigation rather than immunity: a head-on hit at full elytra speed with no
-     * warning distance can still hurt.</p>
+     * Runs at the END of the player tick, before the Collision Damage mod's own END-phase handler
+     * (we register at HIGHEST priority, it at NORMAL). It stores the current horizontal speed as
+     * the "previous tick" snapshot, so the mod's acceleration is always current - current = 0 and
+     * its impact packet never goes out. The snapshot key is theirs; nothing else reads it.
      */
-    private static void dampBeforeImpact(EntityPlayerSP player) {
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
+    public void onPlayerTickEnd(TickEvent.PlayerTickEvent event) {
+        if (event.phase != TickEvent.Phase.END) return;
         if (!FeatureConfig.noFallKinetic) return;
 
-        double speed = Math.sqrt(player.motionX * player.motionX + player.motionZ * player.motionZ);
-        // Below the threshold the server's d14 is negative anyway, so leave flight alone.
-        if (speed < 0.3D) return;
+        Minecraft mc = Minecraft.getMinecraft();
+        EntityPlayerSP player = mc.player;
+        if (player == null || event.player != player) return;
 
-        double look = Math.max(1.5D, Math.min(6.0D, speed * 8.0D));
-        net.minecraft.util.math.Vec3d from = player.getPositionEyes(1.0F);
-        net.minecraft.util.math.Vec3d dir = new net.minecraft.util.math.Vec3d(
-                player.motionX, 0.0D, player.motionZ).normalize();
-        net.minecraft.util.math.Vec3d to = from.addVector(dir.x * look, 0.0D, dir.z * look);
-
-        net.minecraft.util.math.RayTraceResult hit = player.world.rayTraceBlocks(from, to, false, true, false);
-        if (hit == null || hit.typeOfHit != net.minecraft.util.math.RayTraceResult.Type.BLOCK) return;
-
-        double distance = from.distanceTo(hit.hitVec);
-        // Shed speed proportionally to how close the wall is; at contact we are near a standstill.
-        double factor = Math.max(0.0D, Math.min(1.0D, (distance - 0.6D) / look));
-        player.motionX *= factor;
-        player.motionZ *= factor;
-        dampened++;
+        double mx = player.motionX;
+        double mz = player.motionZ;
+        // Same quantisation the mod uses, so the values compare exactly equal.
+        double cur = ((double) ((int) (Math.sqrt(mx * mx + mz * mz) * 20 * 100))) / 100.0D;
+        player.getEntityData().setDouble("prevMotionCombined", cur);
     }
 
-    private static int dampened = 0;
+    /**
+     * Smooth braking for elytra flight. Sweeps the player's bounding box along the flight path to
+     * find the impact distance, then sheds exactly enough speed per tick to arrive at the wall at
+     * or below {@link #SAFE_IMPACT_SPEED}. Because the deceleration is spread over the ticks we
+     * actually have, no single tick ever loses enough speed to register as kinetic damage.
+     */
+    private static void brakeBeforeImpact(EntityPlayerSP player) {
+        double speed = Math.sqrt(player.motionX * player.motionX + player.motionZ * player.motionZ);
+        if (speed <= SAFE_IMPACT_SPEED + 0.1D) return;
 
-    public static int getDampenCount() {
-        return dampened;
+        Vec3d motion = new Vec3d(player.motionX, player.motionY, player.motionZ);
+        double len = motion.lengthVector();
+        if (len < 1.0E-4D) return;
+
+        // Look no further ahead than ~1.5 seconds of flight.
+        double maxLook = Math.min(24.0D, len * 30.0D);
+        AxisAlignedBB box = player.getEntityBoundingBox();
+        double impact = -1.0D;
+        double step = 0.25D;
+        for (double d = step; d <= maxLook; d += step) {
+            AxisAlignedBB at = box.offset(motion.x / len * d, motion.y / len * d, motion.z / len * d);
+            if (player.world.collidesWithAnyBlock(at)) {
+                impact = d;
+                break;
+            }
+        }
+        if (impact < 0.0D) return;
+
+        double ticksToImpact = impact / len;
+        // Keep the last tick in reserve: during it we travel the remaining distance at safe speed.
+        double ticksLeft = Math.max(1.0D, ticksToImpact - 1.0D);
+        double loss = (speed - SAFE_IMPACT_SPEED) / ticksLeft;
+        loss = Math.min(speed - SAFE_IMPACT_SPEED, Math.max(0.0D, loss));
+        if (loss <= 0.0D) return;
+
+        double scale = (speed - loss) / speed;
+        player.motionX *= scale;
+        player.motionZ *= scale;
     }
 
     /**
@@ -103,7 +139,7 @@ public class NoFallHandler {
      */
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public void onLivingAttack(LivingAttackEvent event) {
-        if (!FeatureConfig.noFall) return;
+        if (!FeatureConfig.noFall && !FeatureConfig.noFallKinetic) return;
         Minecraft mc = Minecraft.getMinecraft();
         if (mc.player == null || event.getEntityLiving() != mc.player) return;
         if (isFallOrKinetic(event.getSource())) event.setCanceled(true);

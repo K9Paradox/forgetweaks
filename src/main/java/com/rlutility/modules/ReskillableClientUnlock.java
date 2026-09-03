@@ -25,9 +25,10 @@ import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
  *       exactly the "can't break blocks or interact with entities at all" regression caused by
  *       removing it.</li>
  *   <li><b>Not sufficient</b> - once the packet does go out, the server runs the same check against
- *       its own copy of your levels and can still refuse. Block breaking usually survives because it
- *       is heavily client-predicted; melee damage does not, which is what
- *       {@link WeaponLockBypassHandler} is for.</li>
+ *       its own copy of your levels and can still refuse. Block breaking and interactions usually
+ *       survive because they are heavily client-predicted; melee damage with a locked weapon does
+ *       not, and no client packet path changes that - the honest fix is buying the levels
+ *       (see {@link ReskillableHelper}).</li>
  * </ul>
  *
  * <p>Deliberately absent: the old code also wrote {@code info.setLevel(32)} into the local

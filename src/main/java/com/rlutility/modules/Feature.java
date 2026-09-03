@@ -7,6 +7,10 @@ import java.util.function.Supplier;
  * Describes a single toggleable feature for the GUI / HUD, including how well it behaves on a
  * multiplayer server. The compat tag is deliberately honest so you know at a glance whether a
  * toggle actually changes anything server-side or is purely cosmetic on your own client.
+ *
+ * <p>Features optionally carry a {@link #parent}: the name of the module they refine. The menu
+ * draws sub-features and settings directly underneath their parent module instead of dumping
+ * every option into one flat list - the layout convention of most utility clients.</p>
  */
 public class Feature {
 
@@ -52,17 +56,31 @@ public class Feature {
     public final String desc;
     public final Category category;
     public final Compat compat;
+    /** Name of the module this feature belongs to, or null for a top-level module. */
+    public final String parent;
+    /** Declaration order within the registry; the menu uses it to interleave options naturally. */
+    public int order;
     private final Supplier<Boolean> getter;
     private final Consumer<Boolean> setter;
 
     public Feature(String name, String desc, Category category, Compat compat,
                    Supplier<Boolean> getter, Consumer<Boolean> setter) {
+        this(name, desc, category, compat, null, getter, setter);
+    }
+
+    public Feature(String name, String desc, Category category, Compat compat, String parent,
+                   Supplier<Boolean> getter, Consumer<Boolean> setter) {
         this.name = name;
         this.desc = desc;
         this.category = category;
         this.compat = compat;
+        this.parent = parent;
         this.getter = getter;
         this.setter = setter;
+    }
+
+    public boolean isSubFeature() {
+        return parent != null;
     }
 
     public boolean isEnabled() {

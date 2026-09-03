@@ -25,21 +25,19 @@ import com.rlutility.modules.ItemMagnetHandler;
 import com.rlutility.modules.JesusHandler;
 import com.rlutility.modules.ClickAuraHandler;
 import com.rlutility.modules.DupeExploitHandler;
-import com.rlutility.modules.EnchantPreviewHandler;
 import com.rlutility.modules.ModelOutlineHandler;
 import com.rlutility.modules.ReskillableClientUnlock;
 import com.rlutility.modules.QuestExploitHandler;
 import com.rlutility.modules.LevelUpExploitHandler;
 import com.rlutility.modules.XRayHandler;
 import com.rlutility.modules.LocksHelper;
-import com.rlutility.modules.MovementEventHandler;
+import com.rlutility.modules.FlightHandler;
 import com.rlutility.modules.NoFallHandler;
 import com.rlutility.modules.NoSlowdownHandler;
 import com.rlutility.modules.ReskillableHelper;
 import com.rlutility.modules.SimpleDifficultyHelper;
 import com.rlutility.modules.StepSpeedHandler;
 import com.rlutility.modules.TimerHandler;
-import com.rlutility.modules.WeaponLockBypassHandler;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.settings.KeyBinding;
 import net.minecraftforge.client.ClientCommandHandler;
@@ -77,8 +75,7 @@ public class ClientProxy extends CommonProxy {
         MinecraftForge.EVENT_BUS.register(new StepSpeedHandler());
         MinecraftForge.EVENT_BUS.register(new JesusHandler());
         MinecraftForge.EVENT_BUS.register(new TimerHandler());
-        MinecraftForge.EVENT_BUS.register(new MovementEventHandler());
-        MinecraftForge.EVENT_BUS.register(new WeaponLockBypassHandler());
+        MinecraftForge.EVENT_BUS.register(new FlightHandler());
         MinecraftForge.EVENT_BUS.register(new ClickAuraHandler());
 
         // ---- server-authoritative inventory automation ----------------------
@@ -92,7 +89,6 @@ public class ClientProxy extends CommonProxy {
         // ---- mod-channel exploits (server must run the mod, RLCraft does) ---
         MinecraftForge.EVENT_BUS.register(new AutoReforgerHandler());
         MinecraftForge.EVENT_BUS.register(new LocksHelper());
-        MinecraftForge.EVENT_BUS.register(new EnchantPreviewHandler());
         MinecraftForge.EVENT_BUS.register(new ItemMagnetHandler());
         MinecraftForge.EVENT_BUS.register(new FirstAidHelper());
         MinecraftForge.EVENT_BUS.register(new SimpleDifficultyHelper());

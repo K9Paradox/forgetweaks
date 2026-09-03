@@ -24,7 +24,6 @@ public final class FeatureConfig {
 
     // ---------------------------------------------------------------- Combat
     public static boolean autoCriticals = true;
-    public static boolean levelDamageBypass = true;
     public static boolean antiKnockback = false;
     public static double antiKnockbackHorizontal = 0.0D;
     public static double antiKnockbackVertical = 0.0D;
@@ -59,6 +58,8 @@ public final class FeatureConfig {
     public static boolean clientItemVacuum = false;
     public static boolean reskillableBypass = true;
     public static boolean fastMine = true;
+    /** 0 = Fast (no break delay), 1 = Instant (block progress completes every tick). */
+    public static int fastMineMode = 0;
     public static boolean simpleDifficultyAutoHydrate = true;
     public static boolean autoLoot = false;
     public static int autoLootDelay = 2;
@@ -186,26 +187,7 @@ public final class FeatureConfig {
     /** Draw the model outline through terrain. */
     public static boolean espOutlineThroughWalls = true;
 
-    /** Show the exact enchantments each table slot will give, derived from the synced xpSeed. */
-    public static boolean enchantPreview = true;
-
     // ----------------------------------------------------------- Reskillable
-    /**
-     * Route attacks through mod attack packets instead of the vanilla path. This is what makes
-     * level-locked weapons deal damage - discovered via the nunchaku triggerbot.
-     */
-    public static boolean weaponPacketBypass = true;
-    /** Keep attacking while the button is held, not just on the initial click. */
-    public static boolean weaponBypassHeldAttack = true;
-    /** Minimum vanilla attack charge before the bypass fires. 1.0 = fully charged. */
-    public static double weaponBypassMinCharge = 0.9D;
-
-    /** Use Better Survival's RLCombat integration hook - the call proven to work. */
-    public static boolean bypassUseRlcombatHook = true;
-    /** Also fire the raw mod attack packets. Off by default: they do not work on their own. */
-    public static boolean bypassExtraPackets = false;
-
-
     /** Automatically spend XP on Reskillable levels needed by the item you are holding. */
     public static boolean reskillableAutoBuy = false;
     /** Keep this many XP levels in reserve when auto-buying. */
