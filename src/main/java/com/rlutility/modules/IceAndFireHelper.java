@@ -175,7 +175,7 @@ public final class IceAndFireHelper {
     public static EntityLivingBase entityOnCrosshair(EntityPlayerSP player, double range) {
         Vec3d eye = player.getPositionEyes(1.0F);
         Vec3d look = player.getLook(1.0F);
-        Vec3d end = eye.add(look.x * range, look.y * range, look.z * range);
+        Vec3d end = eye.addVector(look.x * range, look.y * range, look.z * range);
 
         double limit = range;
         RayTraceResult blockHit = player.world.rayTraceBlocks(eye, end, false, true, false);
