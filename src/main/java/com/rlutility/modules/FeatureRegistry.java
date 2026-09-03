@@ -174,6 +174,16 @@ public final class FeatureRegistry {
                 Category.COMBAT, Compat.LOCAL, "Click Aura",
                 () -> FeatureConfig.clickAuraHitTamed, v -> FeatureConfig.clickAuraHitTamed = v);
 
+        f("Reach", "Extends block interaction and attack reach. The vanilla 1.12 server never "
+                + "verifies the client's reach value, so this holds on normal servers - strict "
+                + "anti-cheats may flag it.",
+                Category.COMBAT, Compat.RISKY,
+                () -> FeatureConfig.reachEnabled, v -> FeatureConfig.reachEnabled = v);
+        num("Reach Distance", "Interaction distance in blocks. Vanilla survival is 4.5, creative 5.0.",
+                Category.COMBAT, "Reach", "m",
+                () -> FeatureConfig.reachBlocks, v -> FeatureConfig.reachBlocks = v,
+                0.5, 5, 8, 4.5, 32, false);
+
         f("Anti-Knockback", "Cancels the knockback the server pushes onto you - movement is client-driven.",
                 Category.COMBAT, Compat.SERVER,
                 () -> FeatureConfig.antiKnockback, v -> FeatureConfig.antiKnockback = v);
@@ -188,17 +198,14 @@ public final class FeatureRegistry {
 
         // ============================================================== MOVEMENT
         f("Flight", "Creative-style flying. The server must allow flight for this to hold - on a "
-                + "strict server you will rubber-band back to the ground.",
+                + "strict server you will rubber-band back to the ground. Flight is automatically "
+                + "re-asserted whenever the server strips it mid-air (damage, ability resyncs).",
                 Category.MOVEMENT, Compat.RISKY,
                 () -> FeatureConfig.creativeFly, v -> FeatureConfig.creativeFly = v);
         num("Fly Speed", "Flight speed, re-applied every tick because server resyncs reset it.",
                 Category.MOVEMENT, "Flight", "",
                 () -> FeatureConfig.flySpeed, v -> FeatureConfig.flySpeed = v,
                 0.01, 0.01, 1, 0.01, 10, false);
-        sub("Persist Through Damage", "Re-assert flight after the ability resync that damage triggers, "
-                + "and re-tell the server. Without this you drop out of the sky whenever something hits you.",
-                Category.MOVEMENT, Compat.LOCAL, "Flight",
-                () -> FeatureConfig.flyPersistThroughDamage, v -> FeatureConfig.flyPersistThroughDamage = v);
 
         f("No Fall", "Spoofs the on-ground flag while falling so the server never applies fall damage.",
                 Category.MOVEMENT, Compat.SERVER,
@@ -220,13 +227,12 @@ public final class FeatureRegistry {
         f("No Slowdown", "Full movement speed while eating, blocking or drawing a bow.",
                 Category.MOVEMENT, Compat.SERVER,
                 () -> FeatureConfig.noSlowdown, v -> FeatureConfig.noSlowdown = v);
-        f("Timer", "Speeds up your client tick loop - faster movement, mining and attacks.",
-                Category.MOVEMENT, Compat.RISKY,
-                () -> FeatureConfig.timerEnabled, v -> FeatureConfig.timerEnabled = v);
-        num("Timer Speed", "Tick multiplier. 1.0 is vanilla; above ~2.0 gets you flagged fast.",
-                Category.MOVEMENT, "Timer", "x",
-                () -> FeatureConfig.timerSpeed, v -> FeatureConfig.timerSpeed = v,
-                0.1, 0.1, 5, 0.1, 50, false);
+
+        f("Siren Guard", "Counters Ice and Fire sirens. Auto-equips earplugs when you have them "
+                + "(the real fix - the server then releases the charm); otherwise it fights the "
+                + "pull and auto-runs you away from the singing siren.",
+                Category.MOVEMENT, Compat.MODDED,
+                () -> FeatureConfig.sirenGuard, v -> FeatureConfig.sirenGuard = v);
 
         // ============================================================== SURVIVAL
         f("Auto Armor", "Equips the strongest armour in your inventory with real inventory clicks.",
@@ -235,9 +241,15 @@ public final class FeatureRegistry {
         f("Auto Bandage", "Applies bandages and plasters to wounded limbs through First Aid's own channel.",
                 Category.SURVIVAL, Compat.MODDED,
                 () -> FeatureConfig.firstAidAutoHeal, v -> FeatureConfig.firstAidAutoHeal = v);
-        f("Auto Totem", "Hot-swaps a Totem of Undying into your off-hand via real container clicks.",
+        f("Auto Totem", "Hot-swaps a Totem of Undying into your off-hand via real container clicks. "
+                + "With First Aid installed it also reacts to critical head/body wounds.",
                 Category.SURVIVAL, Compat.SERVER,
                 () -> FeatureConfig.fastTriage, v -> FeatureConfig.fastTriage = v);
+        num("Equip At HP", "Swap a totem in when health drops to this value. First Aid critical "
+                + "head/body wounds trigger it earlier.",
+                Category.SURVIVAL, "Auto Totem", "hp",
+                () -> FeatureConfig.totemEquipAtHealth, v -> FeatureConfig.totemEquipAtHealth = v,
+                1, 2, 16, 1, 20, true);
         f("Auto Eat", "Eats real food (never rotten/poisonous) when hunger drops, then restores your slot.",
                 Category.SURVIVAL, Compat.SERVER,
                 () -> FeatureConfig.autoEat, v -> FeatureConfig.autoEat = v);
@@ -248,6 +260,11 @@ public final class FeatureRegistry {
         f("Auto Hydrate", "Drinks through SimpleDifficulty's channel before you ever go thirsty.",
                 Category.SURVIVAL, Compat.MODDED,
                 () -> FeatureConfig.simpleDifficultyAutoHydrate, v -> FeatureConfig.simpleDifficultyAutoHydrate = v);
+        sub("Safe Water Only", "Only drink from purified water unless thirst is critical. Dirty water "
+                + "has a 75% Thirsty chance plus a parasite roll - the server applies both, so "
+                + "choosing safe sources is the only real protection.",
+                Category.SURVIVAL, Compat.MODDED, "Auto Hydrate",
+                () -> FeatureConfig.simpleDifficultySafeWater, v -> FeatureConfig.simpleDifficultySafeWater = v);
         f("Auto Respawn", "Instantly sends the respawn packet on the death screen.",
                 Category.SURVIVAL, Compat.SERVER,
                 () -> FeatureConfig.autoRespawn, v -> FeatureConfig.autoRespawn = v);
@@ -267,6 +284,10 @@ public final class FeatureRegistry {
         sub("Only My Drops", "Ignore items that another player dropped.",
                 Category.SURVIVAL, Compat.LOCAL, "Item Magnet",
                 () -> FeatureConfig.magnetOnlyMine, v -> FeatureConfig.magnetOnlyMine = v);
+        sub("Ignore My Drops", "The reverse: leave items you dropped or threw yourself where they "
+                + "are, so the magnet only collects loot from kills and chests.",
+                Category.SURVIVAL, Compat.LOCAL, "Item Magnet",
+                () -> FeatureConfig.magnetIgnoreMine, v -> FeatureConfig.magnetIgnoreMine = v);
 
         f("Debuff Neutralizer", "Strips screen-shake and nuisance debuffs from your client render.",
                 Category.SURVIVAL, Compat.LOCAL,

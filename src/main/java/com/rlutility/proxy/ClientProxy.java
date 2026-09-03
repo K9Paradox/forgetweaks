@@ -35,9 +35,10 @@ import com.rlutility.modules.FlightHandler;
 import com.rlutility.modules.NoFallHandler;
 import com.rlutility.modules.NoSlowdownHandler;
 import com.rlutility.modules.ReskillableHelper;
+import com.rlutility.modules.ReachHandler;
 import com.rlutility.modules.SimpleDifficultyHelper;
+import com.rlutility.modules.SirenGuardHandler;
 import com.rlutility.modules.StepSpeedHandler;
-import com.rlutility.modules.TimerHandler;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.settings.KeyBinding;
 import net.minecraftforge.client.ClientCommandHandler;
@@ -74,9 +75,10 @@ public class ClientProxy extends CommonProxy {
         MinecraftForge.EVENT_BUS.register(new NoSlowdownHandler());
         MinecraftForge.EVENT_BUS.register(new StepSpeedHandler());
         MinecraftForge.EVENT_BUS.register(new JesusHandler());
-        MinecraftForge.EVENT_BUS.register(new TimerHandler());
         MinecraftForge.EVENT_BUS.register(new FlightHandler());
         MinecraftForge.EVENT_BUS.register(new ClickAuraHandler());
+        MinecraftForge.EVENT_BUS.register(new ReachHandler());
+        MinecraftForge.EVENT_BUS.register(new SirenGuardHandler());
 
         // ---- server-authoritative inventory automation ----------------------
         MinecraftForge.EVENT_BUS.register(new FastTriageHandler());
@@ -139,10 +141,10 @@ public class ClientProxy extends CommonProxy {
         }
     }
 
-    /** Make sure the timer never survives a disconnect. */
+    /** Reset per-connection state so nothing leaks into the next world. */
     @SubscribeEvent
     public void onDisconnect(FMLNetworkEvent.ClientDisconnectionFromServerEvent event) {
-        TimerHandler.reset();
+        ReachHandler.reset(Minecraft.getMinecraft().playerController);
         DupeExploitHandler.onDisconnect();
         XRayHandler.forceRescan();
     }

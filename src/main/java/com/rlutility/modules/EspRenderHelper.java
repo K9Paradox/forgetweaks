@@ -303,7 +303,9 @@ public class EspRenderHelper {
         GlStateManager.glLineWidth((float) Math.max(0.5D, Math.min(6.0D, FeatureConfig.espLineWidth)));
 
         if (kind.style() == 4) {
-            if (modelOutlined) return;              // the wireframe pass handles it
+            // The wireframe pass handles living entities - but only while it is switched on,
+            // otherwise this category would render nothing at all.
+            if (modelOutlined && FeatureConfig.espModelOutline) return;
             RenderGlobal.drawSelectionBoundingBox(bb, color[0], color[1], color[2], alpha);
             return;
         }

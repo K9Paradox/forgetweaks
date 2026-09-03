@@ -65,14 +65,17 @@ public class ItemMagnetHandler {
             }
             if (BLACKLIST.contains(FeatureConfig.magnetBlacklist, id)) return false;
 
-            if (FeatureConfig.magnetOnlyMine) {
-                // EntityItem#getOwner returns a player *name* in 1.12.2, not a UUID string.
-                String owner = entity.getOwner();
-                if (owner != null && !owner.isEmpty()) {
-                    String self = Minecraft.getMinecraft().player.getName();
-                    if (!owner.equalsIgnoreCase(self)) return false;
-                }
+            // EntityItem#getOwner returns a player *name* in 1.12.2, not a UUID string.
+            String owner = entity.getOwner();
+            boolean mine = false;
+            if (owner != null && !owner.isEmpty() && Minecraft.getMinecraft().player != null) {
+                mine = owner.equalsIgnoreCase(Minecraft.getMinecraft().player.getName());
             }
+
+            // "Ignore My Drops" wins if both are somehow enabled at once.
+            if (FeatureConfig.magnetIgnoreMine && mine) return false;
+
+            if (FeatureConfig.magnetOnlyMine && !mine) return false;
             return true;
         } catch (Throwable ignored) {
             return true;

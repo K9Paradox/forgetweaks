@@ -60,6 +60,15 @@ public class HudOverlay extends Gui {
             drawRect(3, y - 1, 7 + w, y + 10, PANEL_BG);
             fr.drawStringWithShadow(stats, 5, y + 1, TEXT);
             y += 13;
+
+            // SimpleDifficulty survival readout (server-synced thirst + temperature).
+            String env = com.rlutility.modules.SimpleDifficultyHelper.hudReadout();
+            if (!env.isEmpty()) {
+                int ew = fr.getStringWidth(env);
+                drawRect(3, y - 1, 7 + ew, y + 10, PANEL_BG);
+                fr.drawStringWithShadow(env, 5, y + 1, TEXT);
+                y += 13;
+            }
         }
 
         if (FeatureConfig.hudTargetInfo) {

@@ -29,25 +29,28 @@ public final class FeatureConfig {
     public static double antiKnockbackVertical = 0.0D;
     public static boolean firstAidAutoHeal = true;
     public static boolean fastTriage = true;
+    /** Totem hot-swap triggers at this much vanilla health (or earlier on First Aid criticals). */
+    public static double totemEquipAtHealth = 12.0D;
     public static boolean autoArmor = false;
     public static boolean autoEat = false;
     public static int autoEatThreshold = 12;
     public static boolean autoRespawn = false;
+    /** Extend interaction and attack reach client-side. Vanilla servers trust the client here. */
+    public static boolean reachEnabled = false;
+    public static double reachBlocks = 5.0D;
 
     // ------------------------------------------------------------- Movement
     public static boolean noFall = true;
     public static boolean stepSpeed = true;
     public static boolean creativeFly = false;
-    /** Re-assert flight after a server ability resync, which damage triggers. */
-    public static boolean flyPersistThroughDamage = true;
     /** Fly speed re-applied each tick, since the resync also resets it. */
     public static double flySpeed = 0.05D;
     /** Bleed off elytra speed before a wall so kinetic damage stays under its threshold. */
     public static boolean noFallKinetic = true;
     public static boolean noSlowdown = true;
     public static boolean waterWalk = false;
-    public static boolean timerEnabled = false;
-    public static double timerSpeed = 1.5D;
+    /** Counter Ice and Fire sirens: auto-equip earplugs, or auto-evade while charmed. */
+    public static boolean sirenGuard = true;
 
     // -------------------------------------------------------------- Exploits
     public static boolean autoLockpick = true;
@@ -61,6 +64,8 @@ public final class FeatureConfig {
     /** 0 = Fast (no break delay), 1 = Instant (block progress completes every tick). */
     public static int fastMineMode = 0;
     public static boolean simpleDifficultyAutoHydrate = true;
+    /** Never auto-drink from dirty sources except in a thirst emergency. */
+    public static boolean simpleDifficultySafeWater = true;
     public static boolean autoLoot = false;
     public static int autoLootDelay = 2;
     public static boolean autoLootCloseWhenDone = true;
@@ -112,6 +117,8 @@ public final class FeatureConfig {
     public static double magnetSpeed = 0.4D;
     /** Only pull items that are already flagged as yours (thrown/dropped by you). */
     public static boolean magnetOnlyMine = false;
+    /** The opposite of "Only My Drops": never pull items you dropped/threw yourself. */
+    public static boolean magnetIgnoreMine = false;
     /** When set, only these item ids are pulled. Empty = pull everything. */
     public static String magnetWhitelist = "";
     /** Never pull these item ids. Applied after the whitelist. */

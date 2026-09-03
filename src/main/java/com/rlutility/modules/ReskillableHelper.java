@@ -5,6 +5,8 @@ import codersafterdark.reskillable.api.data.PlayerData;
 import codersafterdark.reskillable.api.data.PlayerDataHandler;
 import codersafterdark.reskillable.api.data.PlayerSkillInfo;
 import codersafterdark.reskillable.api.data.RequirementHolder;
+import codersafterdark.reskillable.api.requirement.Requirement;
+import codersafterdark.reskillable.api.requirement.SkillRequirement;
 import codersafterdark.reskillable.api.skill.Skill;
 import codersafterdark.reskillable.base.LevelLockHandler;
 import codersafterdark.reskillable.network.MessageLevelUp;
@@ -18,7 +20,6 @@ import net.minecraftforge.fml.common.Loader;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
 
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -60,10 +61,6 @@ import java.util.Map;
 public class ReskillableHelper {
 
     private static final boolean MOD_LOADED = Loader.isModLoaded("reskillable");
-
-    /** Reflection fallback for reading a RequirementHolder's skill map across Reskillable builds. */
-    private static Field skillLevelsField = null;
-    private static boolean skillLevelsFieldResolved = false;
 
     private int tickCounter = 0;
     private int lastReportHash = 0;
@@ -171,7 +168,16 @@ public class ReskillableHelper {
         return bought;
     }
 
-    /** Requirements of the item in the main hand, as skill -> required level. */
+    /**
+     * Requirements of the item in the main hand, as skill -> required level.
+     *
+     * <h3>Why this used to report "none readable"</h3>
+     * The old implementation reflected into {@link RequirementHolder} looking for a {@code Map}
+     * field of skill levels. No such field exists - the holder stores a
+     * {@code List<Requirement>} - so the scan always came up empty and auto-buy never knew what
+     * to purchase. Requirements are now read through the API: every {@link SkillRequirement} in
+     * {@code holder.getRequirements()} carries its skill and level directly.
+     */
     public static Map<Skill, Integer> requirementsForHeldItem() {
         Map<Skill, Integer> out = new LinkedHashMap<>();
         if (!MOD_LOADED) return out;
@@ -184,33 +190,18 @@ public class ReskillableHelper {
             RequirementHolder holder = LevelLockHandler.getSkillLock(stack);
             if (holder == null || holder.equals(LevelLockHandler.EMPTY_LOCK)) return out;
 
-            // The field moved between Reskillable builds, so resolve it reflectively once.
-            if (!skillLevelsFieldResolved) {
-                skillLevelsFieldResolved = true;
-                for (Field f : holder.getClass().getFields()) {
-                    if (Map.class.isAssignableFrom(f.getType())) {
-                        f.setAccessible(true);
-                        skillLevelsField = f;
-                        break;
+            List<Requirement> requirements = holder.getRequirements();
+            if (requirements == null) return out;
+            for (Requirement requirement : requirements) {
+                if (requirement instanceof SkillRequirement) {
+                    SkillRequirement skillRequirement = (SkillRequirement) requirement;
+                    Skill skill = skillRequirement.getSkill();
+                    if (skill != null) {
+                        // Later entries with the same skill keep the highest level.
+                        Integer existing = out.get(skill);
+                        int level = skillRequirement.getLevel();
+                        if (existing == null || level > existing) out.put(skill, level);
                     }
-                }
-                if (skillLevelsField == null) {
-                    for (Field f : holder.getClass().getDeclaredFields()) {
-                        if (Map.class.isAssignableFrom(f.getType())) {
-                            f.setAccessible(true);
-                            skillLevelsField = f;
-                            break;
-                        }
-                    }
-                }
-            }
-            if (skillLevelsField == null) return out;
-
-            Object value = skillLevelsField.get(holder);
-            if (!(value instanceof Map)) return out;
-            for (Map.Entry<?, ?> e : ((Map<?, ?>) value).entrySet()) {
-                if (e.getKey() instanceof Skill && e.getValue() instanceof Integer) {
-                    out.put((Skill) e.getKey(), (Integer) e.getValue());
                 }
             }
         } catch (Throwable ignored) {}

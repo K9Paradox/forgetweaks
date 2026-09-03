@@ -48,23 +48,32 @@ buttons — is nested directly underneath it. Values are click-stepped or typed 
   options for range, max targets per swing, cooldown respect and player/passive/tamed filters.
 - **Anti-Knockback** `SRV` — damps the velocity the server pushes onto you, with separate
   horizontal/vertical factors.
+- **Reach** `!!` — raises block/attack reach. The 1.12 server never re-verifies the client's reach
+  value, so this holds on normal servers; resets to vanilla on toggle-off and disconnect.
 
 ### Movement
-- **Flight** `!!` — creative-style flight with adjustable speed. *Persist Through Damage* re-asserts
-  flight after the ability resync damage triggers **and re-sends the abilities packet to the
-  server**, so both sides agree and you neither drop out of the sky nor rubber-band.
+- **Flight** `!!` — creative-style flight with adjustable speed. Flight is re-asserted automatically
+  whenever the server strips it mid-air (damage, arrow hits, ability resyncs) — it re-sends the
+  abilities packet so both sides agree and you neither drop nor rubber-band. Built-in, not a toggle;
+  sneak-to-descend is respected as deliberate.
 - **No Fall** `SRV` — spoofs the on-ground flag only once the drop would actually hurt.
 - **Anti-Kinetic** `SRV` — stops wall-impact damage entirely, see below.
+- **Siren Guard** `MOD` — counters Ice and Fire sirens: auto-equips earplugs (the real fix) or
+  auto-runs you away from the song when you have none. See below.
 - **Step Assist** `SRV`, **Water Walk** `SRV`, **No Slowdown** `SRV`.
-- **Timer** `!!` — client tick multiplier; fastest way to get flagged, auto-resets on disconnect.
 
 ### Survival
 - **Auto Armor** `SRV`, **Auto Bandage** `MOD` (First Aid channel), **Auto Totem** `SRV`,
   **Auto Eat** `SRV` (configurable hunger threshold), **Auto Hydrate** `MOD` (SimpleDifficulty
   channel), **Auto Respawn** `SRV`.
+- **Auto Totem** triggers on a configurable health threshold (default 12) **or** a First Aid
+  critical head/body wound — because that is what actually kills in this pack long before the
+  averaged vanilla bar looks low.
+- **Auto Hydrate** can restrict itself to purified water (dirty water carries a server-rolled
+  Thirsty + parasite chance that cannot be spoofed away).
 - **Item Magnet** `MOD` — pulls nearby drops (authoritative with ItemPhysic), with radius/speed
-  settings, whitelist/blacklist editors and an "only my drops" filter. Hard-stops while you are dead
-  so it never drags loot into your corpse.
+  settings, whitelist/blacklist editors, an "only my drops" filter and its inverse "ignore my
+  drops". Hard-stops while you are dead so it never drags loot into your corpse.
 - **Debuff Neutralizer** `CLI` — strips screen-shake and nuisance debuff render.
 
 ### Exploits
@@ -90,7 +99,8 @@ custom block & entity lists (dragon skulls included), tracers, per-category rend
 The *ESP Categories & Styles* table edits enable/style/colour for every category in one place.
 
 ### HUD
-Master switch with watermark, active-module list, FPS/ping/coords line and a target-info readout.
+Master switch with watermark, active-module list, FPS/ping/coords line, a colour-coded
+thirst/temperature readout when SimpleDifficulty is present, and a target-info readout.
 
 ### Tools
 Manual save (reports the exact path it wrote) and a config-file locator.
@@ -143,6 +153,30 @@ the packet carries nothing but a skill name, so we can drive it as fast as we li
 - **XP Reserve** — never spends below N levels
 
 This costs real XP, but it is permanent and server-side: the sword actually works afterwards.
+
+## Siren Guard and the things a client cannot fix
+
+A singing Ice and Fire siren marks everyone within 50 blocks as *charmed* and then pulls them
+closer every tick. The pull is applied **server-side** and enforced through normal movement, so no
+client mod can delete it. Two things genuinely work, and Siren Guard does both:
+
+- **Earplugs** — the charm check clears the instant you wear them. The handler auto-equips
+  earplugs from your inventory into the helmet slot with real clicks. This is the permanent fix.
+- **Out-running it** — the siren blends your velocity ~0.05 blocks/tick toward it, while sprinting
+  away covers ~0.28. With no earplugs, the handler drives that escape automatically (forward/strafe
+  decomposed so the camera doesn't spin, auto-jump over obstacles).
+
+The same research closed several requests as impossible, and they were deliberately **not** shipped
+as placebo toggles:
+
+- **QualityTools quality** is rolled and stored server-side as NBT — there is no client→server
+  quality packet to spoof or force. The only lever is re-rolling, which Auto Reforge already does.
+- **Trinkets & Baubles rings** apply their effects (haste, reach, etc.) as server-side potion
+  effects / BreakSpeed modifiers. There is no C2S "ring packet" to edit.
+- **SimpleDifficulty temperature** is computed and enforced entirely server-side; nothing a client
+  sends changes it. The HUD now shows the synced thirst/temperature values so you can manage it.
+- **Dirty water** contamination is a server RNG roll applied when the server processes your drink.
+  Auto Hydrate's "Safe Water Only" avoids the roll by only drinking purified water.
 
 ## Desync dupe
 
@@ -211,7 +245,7 @@ pass the folder explicitly:
 build.bat "C:\Users\K9\AppData\Roaming\PrismLauncher\instances\RLCraft\minecraft\mods"
 ```
 
-Output: `build\libs\rlutility-1.5.0.jar` — drop it into that same mods folder.
+Output: `build\libs\rlutility-1.6.0.jar` — drop it into that same mods folder.
 
 **Requirements.** ForgeGradle 2.3 only runs on **JDK 8** (Java 9+ will fail with cryptic bytecode
 errors) and Gradle 4.x. The script handles Gradle; if you have no JDK 8 it will tell you and stop:
@@ -233,6 +267,24 @@ Reskillable, Locks, First Aid and others). You can also drop them in `./libs` in
 flag. `gradle checkRlcraftDeps` lists which ones are missing.
 
 ---
+
+## What changed in 1.6.0
+
+- **Auto Bandage actually heals now.** It no longer re-applies a fresh healer to a part that is
+  already being treated (which kept resetting the heal timer and consuming supplies for nothing);
+  it tracks its own treatment window per limb. Morphine is no longer mis-sent as a healer.
+- **Auto Totem actually fires.** Configurable health threshold (default 12) **or** a First Aid
+  critical head/body wound triggers the off-hand swap — the old `health<=7` check never crossed
+  before First Aid killed you.
+- **Flight persist is built-in** with a retry window, so late ability resyncs (e.g. an arrow hit)
+  no longer drop you out of the sky.
+- **Auto-Buy Levels fixed** — requirements are read through Reskillable's real API instead of a
+  reflection guess that never matched.
+- **ESP outlines are no longer white.** Model outlines render the entity's model directly with the
+  category colour; anything without a model falls back to a coloured box.
+- **New:** Siren Guard (Movement), Reach (Combat), Item Magnet "Ignore My Drops", Auto Hydrate
+  "Safe Water Only", and a colour-coded thirst/temperature HUD line.
+- **Removed:** Timer (didn't work and wasn't wanted).
 
 ## What changed in 1.5.0
 
