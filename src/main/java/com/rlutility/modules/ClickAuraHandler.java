@@ -75,6 +75,8 @@ public class ClickAuraHandler {
             if (hit >= Math.max(1, FeatureConfig.clickAuraMaxTargets)) break;
             if (mc.playerController != null) {
                 mc.playerController.attackEntity(mc.player, target);
+                // Optional IaF Execute augmentation, still inside the real mouse-click path.
+                IceAndFireExploitHandler.augmentExecute(target);
             }
             hit++;
         }
