@@ -1,54 +1,216 @@
-# RLExperiments & RLUtility Project State Summary
+# RLUtility — Project State Summary
 
-## 1. Project Overview & Architecture
-- **Mod Name**: `rlutility` (Minecraft 1.12.2 / Forge 14.23.5.2860 / Java 8 Adoptium).
-- **Project Root**: `C:\Users\K9\Desktop\RLExperiments`
-- **Output Jar Destination**: `C:\Users\K9\AppData\Roaming\PrismLauncher\instances\RLCraft\minecraft\mods\rlutility-1.0.0.jar`
-- **Build Toolchain**:
-  - JDK: `C:\Program Files\Eclipse Adoptium\jdk-8.0.504.1-hotspot`
-  - Gradle Wrapper: `C:\Users\K9\.gradle\wrapper\dists\gradle-4.9-bin\e9cinqnqvph59rr7g70qubb4t\gradle-4.9\bin\gradle.bat`
-  - Command: `$env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-8.0.504.1-hotspot"; & $gradle build -x test`
+## 1. Overview
+- **Mod id / name**: `rlutility` / RLUtility — version **1.7.1**
+- **Target**: Minecraft 1.12.2, Forge 14.23.5.x, Java 8, RLCraft **2.9.3**
+- **Scope**: client-side only (`clientSideOnly = true`, `acceptableRemoteVersions = "*"`), designed so
+  that as much as possible is *server-authoritative* and therefore usable in multiplayer.
 
----
+## 2. Architecture
 
-## 2. Lock Solver Engine (`LocksHelper.java`)
-Automated solver targeting the `melonslise.locks` mod (3.0.0).
+```
+com.rlutility
+├── RLUtilityMod            @Mod entry point. preInit -> FeatureConfig.init(configDir)
+├── proxy
+│   ├── CommonProxy         no-op (dedicated server never loads a client class)
+│   └── ClientProxy         keybinds, commands, and ALL event-handler registration
+├── modules
+│   ├── FeatureConfig       reflective persistence of every public static field
+│   ├── Feature             {name, desc, Category, Compat, getter, setter}
+│   ├── FeatureRegistry     single source of truth for the GUI + HUD
+│   └── *Handler / *Helper  one module each
+└── gui
+    ├── GuiUtilityMenu      custom-drawn hub: rail + search + scroll list + settings
+    ├── HudOverlay          watermark, module array list, stats, SD thirst/temp, target info
+    ├── GuiEspConfig        per-category ESP colour + style matrix
+    ├── GuiTargetListEditor generic add/remove list editor (ESP custom, magnet, XRay)
+    └── GuiLevelUpConfig    per-skill Level Up! 2 editor
+```
 
-### Key Mechanics:
-1. **Permutation Architecture**:
-   - Locks are strict mathematical permutations of $\{0, 1, \dots, N-1\}$ with no repeated pins.
-   - Master/Diamond locks feature up to 11 pins ($11! = 39,916,800$ permutations).
-2. **Audio Pitch Mechanics & Decompiled Logic**:
-   - `PIN_MATCH` ($1.0$ pitch): Marks pin correct, advances server slot index, and removes that pin value from all other slot candidate sets.
-   - `PIN_FAIL` (on survival): Plays sound with pitch $1.25$ if $|actual - guess| \le 1$ (adjacent), or pitch $1.0$ if $|actual - guess| > 1$ (distant).
-   - **Pick Breaks (`tryBreakPick`)**: If a pick breaks, the server resets container state and sends `CheckPinResultPacket(false, true)`, **bypassing the fail sound completely**.
-3. **Optimizations Implemented**:
-   - **Line-Speed Replay**: Solved pins replay at 1 pin per tick (50ms) using direct C2S `CheckPinPacket` packets.
-   - **Minimax Entropy Partitioning (`selectOptimalProbeCandidate`)**: Balances adjacent vs distant outcomes to divide candidate sets by 50% on every test.
-   - **Instant Permutation Deduction**: Pin $N-1$ (slot 11 on an 11-pin lock) is 100% deduced with zero guessing.
-   - **Cleaned GUI**: Unified under single toggle `Auto-Lockpick (Audio/Entropy Solver)`.
+**Adding a module** is three steps:
+1. add a `public static boolean` (and any numeric settings) to `FeatureConfig` — persistence is automatic;
+2. add one `f(...)` line in `FeatureRegistry` with its `Compat` tag. Options owned by the module use
+   `sub(..., parent, ...)` / `s(..., group, ...)` / `num(..., group, ...)` and the menu nests them
+   under the module automatically (declaration order preserved via `FeatureRegistry.optionsOf`);
+3. register the handler in `ClientProxy.init()`.
 
----
+## 3. Compatibility taxonomy
+`Feature.Compat` drives the badge shown in the GUI and HUD:
 
-## 3. Exploit Hub Modules (`FeatureConfig.java` & `GuiUtilityMenu.java`)
-- **Keybind**: `O` opens the exploit GUI.
-- **Features**:
-  - `autoCriticals`: Injects fall packets / velocity triggers on attack to guarantee 100% critical hit damage.
-  - `noFall`: Client-side ground spoofing to cancel fall damage.
-  - `noSlowdown`: Prevents movement slowdown while eating or drawing bows.
-  - `fastTriage`: Automated offhand totem/bandage swapping.
-  - `stepSpeed`: Step-height modifier and legit sprint speed adjustments.
-  - `clientDebuffNeutralizer`: Clears screen shake and instability effects from Lycanites / FirstAid.
-  - `clientItemVacuum`: Nearby item pickup via ItemPhysic interception.
-  - `creativeFly`: Client-side flight capabilities.
-  - `autoLockpick`: High-speed audio/entropy packet lock solver.
+| Value    | Badge | Meaning |
+|----------|-------|---------|
+| `SERVER` | `SRV` | Vanilla C2S packets / window clicks — authoritative on any server |
+| `MODDED` | `MOD` | Mod network channel — server must run that mod |
+| `LOCAL`  | `CLI` | Client-only, cosmetic/prediction |
+| `RISKY`  | `!!`  | Client-only and easily rejected/flagged |
 
----
+## 4. Lock Solver (`LocksHelper`) — unchanged
+Targets `melonslise.locks` 3.0.0.
+1. Locks are strict permutations of `{0..N-1}`; master/diamond locks are 11 pins (11! ≈ 39.9M).
+2. Audio feedback: `pin.match` (pitch 1.0) confirms a pin and removes it from every other slot's
+   candidate set; `pin.fail` at pitch 1.25 means `|actual - guess| <= 1`, pitch 1.0 means distant.
+3. Pick breaks send `CheckPinResultPacket(false, true)` with no fail sound — detected via a drop in
+   the lifted-pin count.
+4. Optimisations: known prefix replayed at one pin per tick, minimax entropy probe selection, and the
+   final pin deduced with zero guesses.
 
-## 4. Deployment Command Reference
+## 5. Level Up! 2 exploit (`LevelUpExploitHandler`)
+Channel `levelupskills`, payload `byte button | int levelSpend | (UTF8 name, int level) * registrySize`.
+
+- `button == -1` selects the server's "apply this skill map" branch.
+- `levelSpend == 0` skips `player.removeExperienceLevel(...)` entirely (`if (levelSpend > 0)`).
+- `IPlayerClass.setSkillLevel` is an unvalidated `HashMap.put`, so any level is accepted.
+- `SkillRegistry.loadPlayer` then pushes the result back on `levelupinit`, which is how the
+  post-send verification confirms whether the server accepted.
+
+Channel `levelupclasses`, payload `byte specialization | boolean reclass`. `reclass` is client
+supplied and gates the XP charge, so `false` is a free respec.
+
+Hard constraints: the read loop is exactly `registry.size()` pairs, and every name must exist in the
+registry or `PlayerExtension.saveNBTData` NPEs on the next save.
+
+## 6b. Notable changes in 1.7.1 — playtest fixes
+
+- **IaF modules were inert because they targeted the wrong Ice and Fire version.** RLCraft 2.9.3
+  pins **Ice and Fire 1.7.1** (CF file 2693547) — not 1.8.4. Verified against the real 1.7.1
+  source: `MessageStartRidingMob` does not exist there (its lookup aborted ALL packet
+  resolution), and `MessagePlayerHitMultipart` has no `extraData` field. Fix: permissive
+  per-class resolution in `IceAndFireHelper`, correct 1.7.1 field sets, Mount Hijack replaced by
+  **IaF Dragon Smith** (`MessageDragonArmor`: set/strip any dragon's armor slots server-side —
+  no ownership check, no item consumed). Gorgon Gaze no longer needs a gorgon head (the 1.7.1
+  handler has no held-item check).
+- **Dragon ESP outline size** — `ModelOutlineHandler` now invokes the renderer's
+  `preRenderCallback` (cached reflection, bridge-method safe) between the Y-flip and the lift,
+  reproducing `prepareScale` exactly; that hook is where dragons apply `getRenderSize()/3`.
+- **Auto Totem vs insta-kill falls** — `FastTriageHandler.isLethalFall`: while descending with
+  `fallDistance > 3`, compares `floor(fallDistance) - 3` against current health and arms the
+  totem before impact.
+- **Auto-heal coverage + slot restore** — `FirstAidHelper.isHealingItem` now runs First Aid's
+  own server-side check (`FirstAidRegistry.getImpl().getPartHealer(stack) != null`, with an
+  `instanceof ItemHealing` fallback) instead of a bandage/plaster whitelist, and
+  `applyHealingItemToPart` restores the previously selected hotbar slot after use.
+- **Auto Hydrate, third attempt** — SD's `traceWaterToDrink` requires an EMPTY main hand and
+  honors `thirstDrinkBlocks` / `thirstDrinkRain`. `tryBlockDrink` now frees the hand (empty
+  hotbar slot, or park the item in an empty inventory slot), checks both config booleans, and
+  restores selection + parked item after the drink packet. Item drinks also restore the slot
+  once the server-side use duration elapses.
+- **ThirstBlurSuppressor** (new) — EnhancedVisuals' `SimpleDifficultyAddon` thirst handler is
+  what blurs the screen at low thirst (not SimpleDifficulty itself); the suppressor zeroes its
+  `maxIntensity` and collapses its `thirstLevel` span reflectively, with periodic re-assert.
+
+## 6. Notable changes in 1.7.0 — Ice and Fire packet attack surface
+
+Research into the Recurrent Complex admin exploit (patched in ReC 1.4.8.7, CF file 8562927)
+showed the bug class is "server trusts a client packet", and Ice and Fire (as shipped by
+RLCraft — the 1.7.0 notes originally said 1.8.4; corrected in 1.7.1 to the actually pinned
+**1.7.1**) has several of the same. All five modules send real packets on Ice and Fire's own
+`iceandfire` channel (LLibrary `@NetworkWrapper`, channel = mod id); `IceAndFireHelper`
+resolves the mod's live `SimpleNetworkWrapper` and constructs its real message classes
+reflectively, so `sendToServer` routes by class and no wire format is hand-rolled. Everything
+is server-authoritative (`Compat.MODDED`), no Ice and Fire classes are referenced at compile
+time.
+
+| Module | Packet | What the unvalidated handler does (Ice and Fire 1.7.1) |
+|---|---|---|
+| IaF Longshot | `MessagePlayerHitMultipart` | Server runs `attackTargetEntityWithCurrentItem` on the client-named entity — no range or ownership check → real ranged melee hit (damage, enchants, sweep). We swing locally too so cooldown meters stay in step. |
+| IaF Execute | `MessageMultipartInteract` | Server applies `attackEntityFrom(causeMobDamage(player), dmg)` with `dmg` read straight from the packet → arbitrary damage, no range check. |
+| IaF Gorgon Gaze | `MessageStoneStatue` | Server sets `StoneEntityProperties.isStone` on any `EntityLiving` by id — no distance check and (in 1.7.1) no held-item check. Players extend `EntityLivingBase`, so they cannot be petrified. Unpetrify sub-mode included. |
+| IaF Siren Silencer | `MessageSirenSong` | Flips any siren's singing flag off, no range limit → sirens in radius stop charming everyone. Re-asserted every 2 s. |
+| IaF Dragon Smith | `MessageDragonArmor` | Server calls `setArmorInSlot(index, type)` on any `EntityDragonBase` by id — no ownership check, no item consumed. Grade 0 strips armor, 3 = diamond. (Replaced 1.7.0's Mount Hijack: `MessageStartRidingMob` does not exist in 1.7.1.) |
+
+Supporting pieces: `IceAndFireHelper` also contains the 1.12 entity crosshair ray-cast
+(`entityOnCrosshair`: look-vector ray vs border-grown entity AABBs with block occlusion, since
+vanilla `objectMouseOver` only reaches ~4.5 blocks) and `nearbyByClassName` for the siren scan.
+
+Other messages audited and rejected: `MessageDragonControl` is owner-checked; pixie
+house/jar/podium handlers are empty server-side; `MessageGetMyrmexHive` (client-writable hive
+data) is noted in `PACKET_AUDIT_FINDINGS.md` for a later round.
+
+## 6a. Notable changes in 1.6.0
+- **Auto Bandage fixed**: the client cannot see the server's `part.activeHealer`, so the old
+  "is this part already treated" check always passed and a fresh `MessageApplyHealingItem` went
+  out every cycle — each one *replacing* the server-side healer and resetting its heal timer to
+  zero. Items were consumed, nothing ever healed. FirstAidHelper now keeps its own treatment
+  ledger (45 s window per part, cleared early when synced health reaches max) and only re-applies
+  when a healer genuinely expired. Morphine is no longer treated as a healer (it has none
+  registered server-side).
+- **Auto Totem fixed**: the old trigger was `health <= 7`, but First Aid kills via head/body part
+  health while the averaged vanilla bar still shows plenty. Now: configurable threshold (default
+  12) **or** a critical head/body wound (`FirstAidHelper.hasCriticalWound`), polled every tick
+  plus on hurt events. Shared static `FastTriageHandler.tryEquipTotem` so the two handlers cannot
+  click-fight.
+- **Flight persist is built-in** (setting removed). A netty tap watches incoming
+  `SPacketPlayerAbilities`: a "flying=false" packet that lands while the client is still flying is
+  a server-side strip (damage/arrow resyncs) → restore + 3-second retry window. A double-jump
+  toggle turns flight off locally first, so its confirmation packet is ignored and manual
+  toggling works again. If the strip also says `allowFlying=false`, it is reported once in chat
+  and the client stops fighting it (No Fall then covers the descent).
+- **Auto Bandage also resyncs**: First Aid never syncs healer progress to the client (part updates
+  only ship on damage), so the client HUD kept showing old low part hearts while the server healed
+  — and the ledger thought parts were still wounded. The handler now sends First Aid's own
+  `MessageClientRequest(REQUEST_REFRESH)` after each application and periodically during treatment.
+- **Auto Hydrate rebuilt around the server's real trace**: the old client gate used
+  `Entity#rayTrace`, which cannot see fluids (no collision box) — so it never drank. Now mirrors
+  `world.rayTraceBlocks(..., stopOnLiquid=true)` at reach/2 plus the rain-drink check, and also
+  auto-uses carried drinks (juice / purified bottles / canteens) via `CPacketPlayerTryUseItem`.
+- **Auto Totem default threshold lowered to 6 HP** — 12 kept the totem parked in the off-hand
+  permanently.
+- **Auto-Buy Levels fixed**: requirements are read through the real API
+  (`RequirementHolder.getRequirements()` → `SkillRequirement`); the old reflection looked for a
+  Map field that does not exist, so it always reported "no requirements".
+- **ESP model outlines fixed (white outlines)**: `doRender` resets GL colour internally, so
+  colour-then-doRender always drew white. ModelOutlineHandler now renders
+  `getMainModel().render(...)` directly with vanilla's exact transform sequence — including the
+  `translate(0, -1.501F, 0)` from `prepareScale` that lifts flipped model space onto the entity's
+  feet (missing it sat the outline ~1.5 blocks too low) — keeping our colour; entities without a
+  readable model fall back to a coloured box, and style 4 with Model Outlines switched off now
+  falls back to boxes instead of nothing.
+- **No Fall gate widened**: the on-ground spoof no longer requires negative client velocity, so it
+  still covers descents where the client and server disagree about flight.
+- **Siren Guard (new)**: Ice and Fire sirens pull server-side, so they cannot be deleted
+  client-side; the guard auto-equips earplugs (the real fix — server releases the charm) or
+  auto-runs away from the siren when none are available (sprint speed beats the pull blend).
+- **Reach (new)**: raises `PlayerControllerMP.blockReachDistance` (name + value-scan lookup,
+  re-applied every tick, reset on disconnect). Vanilla 1.12 servers do not verify reach.
+- **Item Magnet: "Ignore My Drops"** — inverse of "Only My Drops" via `EntityItem.getOwner()`.
+- **Auto Hydrate: "Safe Water Only"** — mirrors the server ray-trace locally, only drinks dirty
+  water in a thirst emergency (dirty = 75 % Thirsty + parasite roll, both server-side and
+  unspoofable). HUD gained a colour-coded W/T readout of the synced thirst/temperature values.
+- **Timer removed** (did not work; user does not want it).
+- **Dead ends documented** (researched against pack sources, do not retry): QualityTools quality
+  is rolled and stored server-side NBT — no quality packet to spoof; Trinkets & Baubles ring
+  effects are server-applied potion/BreakSpeed — no C2S ring packets to edit; SimpleDifficulty
+  temperature is computed and enforced server-side with no C2S channel — warmth cannot be
+  spoofed; drinking contamination is server RNG.
+
+## 6b. Notable changes in 1.5.0
+- **Menu refactor**: modules own their options. Sub-features (`Feature.parent`), settings
+  (`Setting.group`) and editor buttons nest under their module; standalone clusters (Level Up! 2,
+  one-shot exploits) get explicit section rows.
+- **Anti-Kinetic is authoritative**: RLCraft's Collision Damage mod deals its damage from a
+  client-reported acceleration packet (`PacketCollisionS`); we pin its `prevMotionCombined`
+  snapshot to the current speed every tick so the packet never goes out. Elytra impacts get a
+  smooth rate-limited brake (arrive below the vanilla loss threshold).
+- **Flight persist re-sends `CPacketPlayerAbilities`** so the server agrees flight is on — the old
+  client-only re-assertion desynced and rubber-banded (the "jittery" bug).
+- **Fast Mine modes**: Fast (delay 0 + BreakSpeed restore) and Instant (progress completed every
+  tick). Reflection fixed to `field_78781_i` / `field_78770_f` — the old `field_78779_k` does not
+  exist, so the module previously did nothing at runtime.
+- **Removed as placebo**: enchantment preview, packet weapon-lock bypasses, level damage bypass.
+  Click Aura now dispatches plain vanilla attacks.
+
+## 6c. Notable fixes in 1.4.0
+- Dedicated-server crash paths removed (`Minecraft` reference in config, client handlers registered
+  from the common entry point).
+- `NoFall` no longer cancels `AutoCriticals` (shared `AutoCritHandler.critWindow`).
+- Crit hop sent once, before the attack packet, instead of twice with half of it too late.
+- `NoSlowdown` no longer overwrites the `MOVEMENT_SPEED` attribute base value.
+- ESP snapshots the world lists (no more CME risk) and is distance-culled.
+- `build.gradle` no longer hard-codes a Windows path for the RLCraft dependency jars.
+
+## 7. Deployment
 ```powershell
 $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-8.0.504.1-hotspot"
-$gradle = "C:\Users\K9\.gradle\wrapper\dists\gradle-4.9-bin\e9cinqnqvph59rr7g70qubb4t\gradle-4.9\bin\gradle.bat"
-& $gradle build -x test
-Copy-Item -Path "C:\Users\K9\Desktop\RLExperiments\build\libs\rlutility-1.0.0.jar" -Destination "C:\Users\K9\AppData\Roaming\PrismLauncher\instances\RLCraft\minecraft\mods\rlutility-1.0.0.jar" -Force
+gradle build -x test -PrlcraftMods="C:\Users\K9\AppData\Roaming\PrismLauncher\instances\RLCraft\minecraft\mods"
+Copy-Item build\libs\rlutility-1.6.0.jar "$env:APPDATA\PrismLauncher\instances\RLCraft\minecraft\mods\" -Force
 ```

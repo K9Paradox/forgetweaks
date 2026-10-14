@@ -1,27 +1,116 @@
 package com.rlutility.proxy;
 
-import com.rlutility.command.*;
+import com.rlutility.command.CommandQuestExploit;
+import com.rlutility.command.CommandRLUtility;
+import com.rlutility.command.CommandRaceExploit;
+import com.rlutility.command.CommandDesyncExploit;
+import com.rlutility.command.CommandSkillExploit;
+import com.rlutility.command.CommandUnlockAll;
 import com.rlutility.gui.GuiUtilityMenu;
+import com.rlutility.gui.HudOverlay;
+import com.rlutility.modules.AntiKnockbackHandler;
+import com.rlutility.modules.AutoArmorHandler;
+import com.rlutility.modules.AutoCritHandler;
+import com.rlutility.modules.AutoEatHandler;
+import com.rlutility.modules.AutoLootHandler;
+import com.rlutility.modules.AutoReforgerHandler;
+import com.rlutility.modules.AutoRespawnHandler;
+import com.rlutility.modules.DebuffPurgerHandler;
+import com.rlutility.modules.EspRenderHelper;
+import com.rlutility.modules.FastMineHelper;
+import com.rlutility.modules.FastTriageHandler;
+import com.rlutility.modules.FeatureConfig;
+import com.rlutility.modules.FirstAidHelper;
+import com.rlutility.modules.IceAndFireExploitHandler;
+import com.rlutility.modules.ItemMagnetHandler;
+import com.rlutility.modules.JesusHandler;
+import com.rlutility.modules.ClickAuraHandler;
+import com.rlutility.modules.DupeExploitHandler;
+import com.rlutility.modules.ModelOutlineHandler;
+import com.rlutility.modules.ReskillableClientUnlock;
+import com.rlutility.modules.QuestExploitHandler;
+import com.rlutility.modules.LevelUpExploitHandler;
+import com.rlutility.modules.XRayHandler;
+import com.rlutility.modules.LocksHelper;
+import com.rlutility.modules.FlightHandler;
+import com.rlutility.modules.NoFallHandler;
+import com.rlutility.modules.NoSlowdownHandler;
+import com.rlutility.modules.ReskillableHelper;
+import com.rlutility.modules.ReachHandler;
+import com.rlutility.modules.SimpleDifficultyHelper;
+import com.rlutility.modules.SirenGuardHandler;
+import com.rlutility.modules.ThirstBlurSuppressor;
+import com.rlutility.modules.StepSpeedHandler;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.settings.KeyBinding;
 import net.minecraftforge.client.ClientCommandHandler;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fml.client.registry.ClientRegistry;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
-import net.minecraftforge.fml.common.gameevent.InputEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
+import net.minecraftforge.fml.common.network.FMLNetworkEvent;
 import org.lwjgl.input.Keyboard;
 
 public class ClientProxy extends CommonProxy {
 
     public static KeyBinding openGuiKey;
+    public static KeyBinding toggleClickAuraKey;
+    public static KeyBinding toggleHudKey;
 
     @Override
     public void init() {
         super.init();
+
         openGuiKey = new KeyBinding("key.rlutility.opengui", Keyboard.KEY_RSHIFT, "category.rlutility");
+        toggleClickAuraKey = new KeyBinding("key.rlutility.killaura", Keyboard.KEY_R, "category.rlutility");
+        toggleHudKey = new KeyBinding("key.rlutility.hud", Keyboard.KEY_H, "category.rlutility");
         ClientRegistry.registerKeyBinding(openGuiKey);
+        ClientRegistry.registerKeyBinding(toggleClickAuraKey);
+        ClientRegistry.registerKeyBinding(toggleHudKey);
+
         MinecraftForge.EVENT_BUS.register(this);
+
+        // ---- server-authoritative combat / movement -------------------------
+        MinecraftForge.EVENT_BUS.register(new AutoCritHandler());
+        MinecraftForge.EVENT_BUS.register(new AntiKnockbackHandler());
+        MinecraftForge.EVENT_BUS.register(new NoFallHandler());
+        MinecraftForge.EVENT_BUS.register(new NoSlowdownHandler());
+        MinecraftForge.EVENT_BUS.register(new StepSpeedHandler());
+        MinecraftForge.EVENT_BUS.register(new JesusHandler());
+        FlightHandler flightHandler = new FlightHandler();
+        MinecraftForge.EVENT_BUS.register(flightHandler);
+        // The network-connect events (used to tap incoming abilities packets) arrive on the FML bus.
+        net.minecraftforge.fml.common.FMLCommonHandler.instance().bus().register(flightHandler);
+        MinecraftForge.EVENT_BUS.register(new ClickAuraHandler());
+        MinecraftForge.EVENT_BUS.register(new ReachHandler());
+        MinecraftForge.EVENT_BUS.register(new SirenGuardHandler());
+        MinecraftForge.EVENT_BUS.register(new IceAndFireExploitHandler());
+
+        // ---- server-authoritative inventory automation ----------------------
+        MinecraftForge.EVENT_BUS.register(new FastTriageHandler());
+        MinecraftForge.EVENT_BUS.register(new AutoArmorHandler());
+        MinecraftForge.EVENT_BUS.register(new AutoEatHandler());
+        MinecraftForge.EVENT_BUS.register(new AutoLootHandler());
+        MinecraftForge.EVENT_BUS.register(new AutoRespawnHandler());
+        MinecraftForge.EVENT_BUS.register(new FastMineHelper());
+
+        // ---- mod-channel exploits (server must run the mod, RLCraft does) ---
+        MinecraftForge.EVENT_BUS.register(new AutoReforgerHandler());
+        MinecraftForge.EVENT_BUS.register(new LocksHelper());
+        MinecraftForge.EVENT_BUS.register(new ItemMagnetHandler());
+        MinecraftForge.EVENT_BUS.register(new FirstAidHelper());
+        MinecraftForge.EVENT_BUS.register(new SimpleDifficultyHelper());
+
+        // ---- client-side visuals / quality of life --------------------------
+        MinecraftForge.EVENT_BUS.register(new ThirstBlurSuppressor());
+        MinecraftForge.EVENT_BUS.register(new DebuffPurgerHandler());
+        MinecraftForge.EVENT_BUS.register(new ReskillableHelper());
+        MinecraftForge.EVENT_BUS.register(new ReskillableClientUnlock());
+        MinecraftForge.EVENT_BUS.register(new EspRenderHelper());
+        MinecraftForge.EVENT_BUS.register(new ModelOutlineHandler());
+        MinecraftForge.EVENT_BUS.register(new XRayHandler());
+        MinecraftForge.EVENT_BUS.register(new HudOverlay());
+
         ClientCommandHandler.instance.registerCommand(new CommandRLUtility());
         ClientCommandHandler.instance.registerCommand(new CommandSkillExploit());
         ClientCommandHandler.instance.registerCommand(new CommandRaceExploit());
@@ -32,25 +121,54 @@ public class ClientProxy extends CommonProxy {
 
     @SubscribeEvent
     public void onClientTick(TickEvent.ClientTickEvent event) {
-        if (event.phase == TickEvent.Phase.END) {
-            Minecraft mc = Minecraft.getMinecraft();
-            if (mc.world != null && mc.player != null) {
-                if (openGuiKey != null && openGuiKey.isPressed()) {
-                    if (mc.currentScreen == null) {
-                        mc.displayGuiScreen(new GuiUtilityMenu());
-                    }
-                }
-            }
+        if (event.phase != TickEvent.Phase.END) return;
+
+        Minecraft mc = Minecraft.getMinecraft();
+        if (mc.world == null || mc.player == null) return;
+
+        // Reports whether the server actually accepted the last Level Up! 2 skill packet.
+        LevelUpExploitHandler.tick();
+        DupeExploitHandler.tick();
+        QuestExploitHandler.tick();
+
+        if (mc.currentScreen != null) return;
+
+        if (openGuiKey != null && openGuiKey.isPressed()) {
+            mc.displayGuiScreen(new GuiUtilityMenu());
+        }
+        if (toggleClickAuraKey != null && toggleClickAuraKey.isPressed()) {
+            FeatureConfig.clickAura = !FeatureConfig.clickAura;
+            FeatureConfig.saveConfig();
+            announce(mc, "Click Aura", FeatureConfig.clickAura);
+        }
+        if (toggleHudKey != null && toggleHudKey.isPressed()) {
+            FeatureConfig.hudEnabled = !FeatureConfig.hudEnabled;
+            FeatureConfig.saveConfig();
+            announce(mc, "HUD", FeatureConfig.hudEnabled);
         }
     }
 
+    /** Reset per-connection state so nothing leaks into the next world. */
     @SubscribeEvent
-    public void onKeyInput(InputEvent.KeyInputEvent event) {
-        if (openGuiKey != null && openGuiKey.isPressed()) {
-            Minecraft mc = Minecraft.getMinecraft();
-            if (mc.currentScreen == null) {
-                mc.displayGuiScreen(new GuiUtilityMenu());
-            }
+    public void onDisconnect(FMLNetworkEvent.ClientDisconnectionFromServerEvent event) {
+        ReachHandler.reset(Minecraft.getMinecraft().playerController);
+        DupeExploitHandler.onDisconnect();
+        XRayHandler.forceRescan();
+    }
+
+    /** The dupe flow arms itself on the join after you were told to relog. */
+    @SubscribeEvent
+    public void onJoinWorld(net.minecraftforge.event.entity.EntityJoinWorldEvent event) {
+        if (event.getWorld() != null && event.getWorld().isRemote
+                && event.getEntity() == Minecraft.getMinecraft().player) {
+            DupeExploitHandler.onJoinedWorld();
+            XRayHandler.forceRescan();
         }
+    }
+
+    private void announce(Minecraft mc, String name, boolean state) {
+        if (mc.player == null) return;
+        mc.player.sendMessage(new net.minecraft.util.text.TextComponentString(
+                "\u00a76[RLUtility] \u00a7f" + name + (state ? " \u00a7aENABLED" : " \u00a7cDISABLED")));
     }
 }
